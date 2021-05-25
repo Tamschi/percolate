@@ -7,7 +7,7 @@ use core::{
 	task::{Context, Poll},
 };
 use ergo_pin::ergo_pin;
-use futures_core::Stream;
+use futures_core::{FusedStream, Stream};
 use futures_util::StreamExt as _;
 use pin_project::pin_project;
 use tap::{Conv as _, Pipe as _};
@@ -93,14 +93,14 @@ impl<const MODULE: usize> AddAssign<usize> for Modular<MODULE> {
 }
 
 #[pin_project]
-pub struct PeekStream<Input: Stream, const CAPACITY: usize> {
+pub struct PeekStream<Input: FusedStream, const CAPACITY: usize> {
 	#[pin]
 	input: Input,
 	buffer: [MaybeUninit<Input::Item>; CAPACITY],
 	start: Modular<CAPACITY>,
 	len: usize,
 }
-impl<Input: Stream, const CAPACITY: usize> Stream for PeekStream<Input, CAPACITY> {
+impl<Input: FusedStream, const CAPACITY: usize> Stream for PeekStream<Input, CAPACITY> {
 	type Item = Input::Item;
 
 	fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
@@ -125,7 +125,12 @@ impl<Input: Stream, const CAPACITY: usize> Stream for PeekStream<Input, CAPACITY
 		)
 	}
 }
-impl<Input: Stream, const CAPACITY: usize> PeekStream<Input, CAPACITY> {
+impl<Input: FusedStream, const CAPACITY: usize> FusedStream for PeekStream<Input, CAPACITY> {
+	fn is_terminated(&self) -> bool {
+		self.len == 0 && self.input.is_terminated()
+	}
+}
+impl<Input: FusedStream, const CAPACITY: usize> PeekStream<Input, CAPACITY> {
 	pub async fn peek_1(self: Pin<&mut Self>) -> Option<&Input::Item> {
 		self.peek_n(NonZeroUsize::new(1).expect("unreachable"))
 			.await
@@ -143,23 +148,34 @@ impl<Input: Stream, const CAPACITY: usize> PeekStream<Input, CAPACITY> {
 		);
 		let mut this = self.project();
 		while *this.len < depth.get() {
-			this.buffer[(*this.start + *this.len).conv::<usize>()] =
-				this.input.next().await?.pipe(MaybeUninit::new);
-			*this.len += 1;
+			if this.input.is_terminated() {
+				return None;
+			} else {
+				this.buffer[(*this.start + *this.len).conv::<usize>()] =
+					this.input.next().await?.pipe(MaybeUninit::new);
+				*this.len += 1;
+			}
 		}
-		Some(unsafe {
+		unsafe {
 			// Safety: Assuredly written to directly above or earlier than that.
 			&*this.buffer[(*this.start + depth.get()).conv::<usize>()].as_ptr()
-		})
+		}
+		.pipe(Some)
 	}
 
+	/// Retrieves the next item only if it satisfies `predicate`.
+	///
+	/// * The conversion of `predicate` happens immediately.
+	/// * Buffers the next item, if available.
 	#[ergo_pin]
 	pub async fn next_if(
 		mut self: Pin<&mut Self>,
 		predicate: impl IntoPredicateMut<Input::Item>,
 	) -> Option<Input::Item> {
-		let item = self.as_mut().peek_1().await?;
-		if pin!(predicate.into_predicate_mut()).test(item).await {
+		if pin!(predicate.into_predicate_mut())
+			.test(self.as_mut().peek_1().await?)
+			.await
+		{
 			self.next().await
 		} else {
 			None
