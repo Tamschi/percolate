@@ -1,7 +1,7 @@
 #![doc(html_root_url = "https://docs.rs/percolate/0.0.1")]
 #![no_std]
 #![warn(clippy::pedantic)]
-#![allow(clippy::single_match_else)]
+#![allow(clippy::module_name_repetitions, clippy::single_match_else)]
 
 #[cfg(doctest)]
 pub mod readme {

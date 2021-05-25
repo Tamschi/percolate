@@ -1,151 +1,38 @@
-use crate::handles::{PinHandle, RunOnce, Runnable};
-use core::{
-	cell::UnsafeCell,
-	future::Future,
-	intrinsics::transmute,
-	marker::PhantomPinned,
-	pin::Pin,
-	ptr::NonNull,
-	task::{Context, Poll},
+use crate::{
+	handles::PinHandle,
+	projection::{self, IntoRefProjectionMut, RefProjectionMut},
 };
-use pin_project::pin_project;
-use tap::Pipe;
+use core::{future::Future, pin::Pin};
 
-pub trait Predicate<T: ?Sized> {
+pub trait PredicateMut<T: ?Sized>: RefProjectionMut<T, bool> {
 	fn test<'a>(
 		self: Pin<&'a mut Self>,
 		value: &'a T,
-	) -> PinHandle<'a, dyn 'a + Future<Output = bool>>;
-}
-
-#[allow(clippy::module_name_repetitions)]
-pub trait IntoPredicate<T: ?Sized>: Sized {
-	type IntoPredicate: Predicate<T>;
-	#[must_use]
-	fn into_predicate(self) -> Self::IntoPredicate;
-}
-
-#[pin_project]
-pub struct Blocking<P, T: ?Sized>
-where
-	P: FnMut(&T) -> bool,
-{
-	predicate: UnsafeCell<P>,
-	param: Option<NonNull<T>>,
-	/// Please audit: Is this enough or do I need an atomic here wrt. weaker memory ordering on ARM-based systems?
-	result: UnsafeCell<Option<bool>>,
-	_pin: PhantomPinned,
-}
-unsafe impl<P, T: ?Sized> Send for Blocking<P, T>
-where
-	P: Send + FnMut(&T) -> bool,
-	T: Sync,
-{
-}
-impl<P, T: ?Sized> IntoPredicate<T> for Blocking<P, T>
-where
-	P: FnMut(&T) -> bool,
-{
-	type IntoPredicate = Self;
-	fn into_predicate(self) -> Self::IntoPredicate {
-		self
-	}
-}
-
-#[repr(transparent)]
-#[pin_project]
-// So *in theory* the `UnsafeCell` here should mean a `Pin<&mut BlockingFuture>` doesn't count as mutable reference to the underlying data.
-struct BlockingFuture<P, T: ?Sized>(#[pin] UnsafeCell<Blocking<P, T>>)
-where
-	P: FnMut(&T) -> bool;
-unsafe impl<P, T: ?Sized> Send for BlockingFuture<P, T>
-where
-	P: Send + FnMut(&T) -> bool,
-	T: Sync,
-{
-}
-unsafe impl<P, T: ?Sized> Sync for BlockingFuture<P, T>
-where
-	P: FnMut(&T) -> bool,
-{
-	// Safety: Shared references to this type aren't interactive.
-}
-impl<P, T: ?Sized> Future for BlockingFuture<P, T>
-where
-	P: FnMut(&T) -> bool,
-{
-	type Output = bool;
-	fn poll(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
-		let blocking = unsafe { &*self.project().0.get() };
-		match unsafe { *blocking.result.get() } {
-			Some(ready) => ready,
-			None => {
-				let result =
-					unsafe { (*blocking.predicate.get())(blocking.param.unwrap().as_ref()) };
-				unsafe {
-					*blocking.result.get() = Some(result);
-				}
-				result
-			}
-		}
-		.pipe(Poll::Ready)
-	}
-}
-
-#[repr(transparent)]
-struct BlockingClear<P, T: ?Sized>(Blocking<P, T>)
-where
-	P: FnMut(&T) -> bool;
-impl<P, T: ?Sized> Runnable<(), ()> for BlockingClear<P, T>
-where
-	P: FnMut(&T) -> bool,
-{
-	fn run(&self, _: ()) {
-		unsafe {
-			*self.0.result.get() = None;
-		}
-	}
-}
-
-impl<P, T: ?Sized> Predicate<T> for Blocking<P, T>
-where
-	P: FnMut(&T) -> bool,
-{
-	#[must_use]
-	fn test<'a>(
-		mut self: Pin<&'a mut Self>,
-		value: &'a T,
 	) -> PinHandle<'a, dyn 'a + Future<Output = bool>> {
-		self.param = Some(value.into());
-		let this = &*self;
-		PinHandle::new(
-			unsafe { transmute::<&Self, Pin<&mut BlockingFuture<P, T>>>(this) },
-			Some(RunOnce::new(unsafe {
-				&*(this as *const Self).cast::<BlockingClear<P, T>>()
-			})),
-		)
+		self.project(value)
+	}
+}
+impl<P: ?Sized, T: ?Sized> PredicateMut<T> for P where P: RefProjectionMut<T, bool> {}
+
+pub trait IntoPredicateMut<T: ?Sized>: IntoRefProjectionMut<T, bool> {
+	type IntoPredicateMut: PredicateMut<T>;
+	#[must_use]
+	fn into_predicate_mut(self) -> Self::IntoPredicateMut;
+}
+impl<P, T: ?Sized> IntoPredicateMut<T> for P
+where
+	P: IntoRefProjectionMut<T, bool>,
+{
+	type IntoPredicateMut = Self::IntoRefProjectionMut;
+	fn into_predicate_mut(self) -> Self::IntoPredicateMut {
+		self.into_ref_projection_mut()
 	}
 }
 
 #[must_use]
-pub fn from_blocking<P, T: ?Sized>(predicate: P) -> Blocking<P, T>
+pub fn from_blocking<P, T: ?Sized>(predicate_mut: P) -> projection::RefBlockingMut<P, T, bool>
 where
 	P: FnMut(&T) -> bool,
 {
-	Blocking {
-		predicate: predicate.into(),
-		param: None,
-		result: None.into(),
-		_pin: PhantomPinned,
-	}
-}
-
-impl<P, T: ?Sized> IntoPredicate<T> for P
-where
-	P: FnMut(&T) -> bool,
-{
-	type IntoPredicate = Blocking<P, T>;
-	fn into_predicate(self) -> Self::IntoPredicate {
-		from_blocking(self)
-	}
+	projection::from_ref_blocking_mut(predicate_mut)
 }

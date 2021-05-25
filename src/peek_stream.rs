@@ -12,7 +12,7 @@ use futures_util::StreamExt as _;
 use pin_project::pin_project;
 use tap::{Conv as _, Pipe as _};
 
-use crate::predicate::{IntoPredicate, Predicate};
+use crate::predicate::{IntoPredicateMut, PredicateMut};
 
 // A neat generic implementation isn't yet possible because types of const generic parameters can't depend on other type parameters yet.
 // TODO: Check maths terms.
@@ -127,9 +127,15 @@ impl<Input: Stream, const CAPACITY: usize> Stream for PeekStream<Input, CAPACITY
 }
 impl<Input: Stream, const CAPACITY: usize> PeekStream<Input, CAPACITY> {
 	pub async fn peek_1(self: Pin<&mut Self>) -> Option<&Input::Item> {
-		self.peek_n(NonZeroUsize::new(1).unwrap()).await
+		self.peek_n(NonZeroUsize::new(1).expect("unreachable"))
+			.await
 	}
 
+	/// Peeks `depth` items ahead in `self`.
+	///
+	/// # Panics
+	///
+	/// Iff `depth` exceeds `CAPACITY`.
 	pub async fn peek_n(self: Pin<&mut Self>, depth: NonZeroUsize) -> Option<&Input::Item> {
 		assert!(
 			depth.get() <= CAPACITY,
@@ -150,10 +156,10 @@ impl<Input: Stream, const CAPACITY: usize> PeekStream<Input, CAPACITY> {
 	#[ergo_pin]
 	pub async fn next_if(
 		mut self: Pin<&mut Self>,
-		predicate: impl IntoPredicate<Input::Item>,
+		predicate: impl IntoPredicateMut<Input::Item>,
 	) -> Option<Input::Item> {
 		let item = self.as_mut().peek_1().await?;
-		if pin!(predicate.into_predicate()).test(item).await {
+		if pin!(predicate.into_predicate_mut()).test(item).await {
 			self.next().await
 		} else {
 			None
