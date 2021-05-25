@@ -37,6 +37,9 @@ where
 	A: Sync,
 {
 }
+/// [`&RefBlockingMut`] is non-interactive.
+unsafe impl<P, A: ?Sized, B> Sync for RefBlockingMut<P, A, B> where P: FnMut(&A) -> B {}
+
 impl<P, A: ?Sized, B> IntoRefProjectionMut<A, B> for RefBlockingMut<P, A, B>
 where
 	P: FnMut(&A) -> B,
@@ -44,27 +47,6 @@ where
 	type IntoRefProjectionMut = Self;
 	fn into_ref_projection_mut(self) -> Self::IntoRefProjectionMut {
 		self
-	}
-}
-
-#[repr(transparent)]
-#[pin_project]
-struct RefBlockingFuture<P, A: ?Sized, B>(#[pin] RefBlockingMut<P, A, B>)
-where
-	P: FnMut(&A) -> B;
-impl<P, A: ?Sized, B> Future for RefBlockingFuture<P, A, B>
-where
-	P: FnMut(&A) -> B,
-{
-	type Output = B;
-	fn poll(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
-		let blocking = &mut self.project().0;
-		blocking
-			.param
-			.take()
-			.expect("`RefBlockingFuture::poll` called twice")
-			.pipe(|param_ptr| (blocking.projection)(unsafe { param_ptr.as_ref() }))
-			.pipe(Poll::Ready)
 	}
 }
 
@@ -82,6 +64,28 @@ where
 			unsafe { transmute::<Pin<&mut Self>, Pin<&mut RefBlockingFuture<P, A, B>>>(self) },
 			None,
 		)
+	}
+}
+
+#[repr(transparent)]
+#[pin_project]
+struct RefBlockingFuture<P, A: ?Sized, B>(#[pin] RefBlockingMut<P, A, B>)
+where
+	P: FnMut(&A) -> B;
+
+impl<P, A: ?Sized, B> Future for RefBlockingFuture<P, A, B>
+where
+	P: FnMut(&A) -> B,
+{
+	type Output = B;
+	fn poll(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
+		let blocking = &mut self.project().0;
+		blocking
+			.param
+			.take()
+			.expect("`RefBlockingFuture::poll` called twice")
+			.pipe(|param_ptr| (blocking.projection)(unsafe { param_ptr.as_ref() }))
+			.pipe(Poll::Ready)
 	}
 }
 
