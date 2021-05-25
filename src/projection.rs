@@ -1,3 +1,6 @@
+//! Projections asynchronously transform an input `A` into an output `B`.
+//! During this process, a reference to `self` is held.
+
 use crate::handles::PinHandle;
 use core::{
 	future::Future,
