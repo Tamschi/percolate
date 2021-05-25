@@ -4,7 +4,7 @@ use core::{
 	pin::Pin,
 	task::{Context, Poll},
 };
-use futures_core::Stream;
+use futures_core::{FusedFuture, FusedStream, Stream};
 
 pub trait Runnable<Args, R> {
 	fn run(&self, args: Args) -> R;
@@ -66,6 +66,15 @@ where
 	}
 }
 
+impl<'a, T: ?Sized> FusedFuture for PinHandle<'a, T>
+where
+	T: FusedFuture,
+{
+	fn is_terminated(&self) -> bool {
+		self.pin.is_terminated()
+	}
+}
+
 impl<'a, T: ?Sized> Stream for PinHandle<'a, T>
 where
 	T: Stream,
@@ -78,5 +87,14 @@ where
 
 	fn size_hint(&self) -> (usize, Option<usize>) {
 		self.pin.size_hint()
+	}
+}
+
+impl<'a, T: ?Sized> FusedStream for PinHandle<'a, T>
+where
+	T: FusedStream,
+{
+	fn is_terminated(&self) -> bool {
+		self.pin.is_terminated()
 	}
 }
