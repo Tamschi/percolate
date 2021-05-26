@@ -53,6 +53,7 @@
 //! }
 //!
 //! assert_eq!(block_on(project(1, |x| x + 1)), 2);
+//! //TODO: assert!(block_on(project(1, |x| async { x + 1 })) == 2)
 //! ```
 
 use crate::handles::{PinHandle, RunOnce, Runnable};
@@ -61,12 +62,15 @@ use core::{
 	future::Future,
 	mem::transmute,
 	pin::Pin,
-	ptr::NonNull,
 	task::{Context, Poll},
 };
 use futures_core::FusedFuture;
 use pin_project::pin_project;
 use tap::Pipe;
+
+mod fused_ref_blocking_mut;
+
+pub use fused_ref_blocking_mut::{from_ref_blocking_mut, FusedRefBlockingMut};
 
 pub trait Projection<A, B>: ProjectionMut<A, B> {
 	fn project(self: Pin<&Self>, value: A) -> PinHandle<'_, dyn '_ + Future<Output = B>>;
@@ -259,108 +263,6 @@ where
 
 //////
 
-#[pin_project]
-pub struct FusedRefBlockingMut<P, A: ?Sized, B>
-where
-	P: FnMut(&A) -> B,
-{
-	projection: P,
-	param: Option<NonNull<A>>,
-}
-unsafe impl<P, A: ?Sized, B> Send for FusedRefBlockingMut<P, A, B>
-where
-	P: Send + FnMut(&A) -> B,
-	A: Sync,
-{
-}
-/// [`&dyn RefBlockingMut`] is immutable.
-unsafe impl<P, A: ?Sized, B> Sync for FusedRefBlockingMut<P, A, B> where P: FnMut(&A) -> B {}
-
-impl<P, A: ?Sized, B> IntoRefProjectionMut<A, B> for FusedRefBlockingMut<P, A, B>
-where
-	P: FnMut(&A) -> B,
-{
-	type IntoRefProjMut = Self;
-	fn into_ref_projection_mut(self) -> Self::IntoRefProjMut {
-		self
-	}
-}
-
-impl<P, A: ?Sized, B> IntoFusedRefProjectionMut<A, B> for FusedRefBlockingMut<P, A, B>
-where
-	P: FnMut(&A) -> B,
-{
-	type IntoFusedRefProjMut = Self;
-	fn into_fused_ref_projection_mut(self) -> Self::IntoFusedRefProjMut {
-		self
-	}
-}
-
-impl<P, A: ?Sized, B> RefProjectionMut<A, B> for FusedRefBlockingMut<P, A, B>
-where
-	P: FnMut(&A) -> B,
-{
-	#[must_use]
-	fn project_ref<'a>(
-		mut self: Pin<&'a mut Self>,
-		value: &'a A,
-	) -> PinHandle<'a, dyn 'a + Future<Output = B>> {
-		self.param = Some(value.into());
-		PinHandle::new(
-			unsafe { transmute::<Pin<&mut Self>, Pin<&mut RefBlockingFutureMut<P, A, B>>>(self) },
-			None,
-		)
-	}
-}
-
-impl<P, A: ?Sized, B> FusedRefProjectionMut<A, B> for FusedRefBlockingMut<P, A, B>
-where
-	P: FnMut(&A) -> B,
-{
-	#[must_use]
-	fn project_ref_fused<'a>(
-		mut self: Pin<&'a mut Self>,
-		value: &'a A,
-	) -> PinHandle<'a, dyn 'a + FusedFuture<Output = B>> {
-		self.param = Some(value.into());
-		PinHandle::new(
-			unsafe { transmute::<Pin<&mut Self>, Pin<&mut RefBlockingFutureMut<P, A, B>>>(self) },
-			None,
-		)
-	}
-}
-
-#[repr(transparent)]
-#[pin_project]
-struct RefBlockingFutureMut<P, A: ?Sized, B>(#[pin] FusedRefBlockingMut<P, A, B>)
-where
-	P: FnMut(&A) -> B;
-
-impl<P, A: ?Sized, B> Future for RefBlockingFutureMut<P, A, B>
-where
-	P: FnMut(&A) -> B,
-{
-	type Output = B;
-	fn poll(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
-		let blocking = &mut self.project().0;
-		blocking
-			.param
-			.take()
-			.expect("`RefBlockingFutureMut::poll` called twice")
-			.pipe(|param_ptr| (blocking.projection)(unsafe { param_ptr.as_ref() }))
-			.pipe(Poll::Ready)
-	}
-}
-
-impl<P, A: ?Sized, B> FusedFuture for RefBlockingFutureMut<P, A, B>
-where
-	P: FnMut(&A) -> B,
-{
-	fn is_terminated(&self) -> bool {
-		self.0.param.is_none()
-	}
-}
-
 #[must_use]
 pub fn from_blocking<P, A, B>(projection: P) -> FusedBlockingMut<P, A, B>
 where
@@ -389,36 +291,5 @@ where
 	type IntoFusedProjMut = FusedBlockingMut<P, A, B>;
 	fn into_fused_projection_mut(self) -> Self::IntoFusedProjMut {
 		from_blocking(self)
-	}
-}
-
-#[must_use]
-pub fn from_ref_blocking_mut<P, A: ?Sized, B>(projection: P) -> FusedRefBlockingMut<P, A, B>
-where
-	P: FnMut(&A) -> B,
-{
-	FusedRefBlockingMut {
-		projection,
-		param: None,
-	}
-}
-
-impl<P, A: ?Sized, B> IntoRefProjectionMut<A, B> for P
-where
-	P: FnMut(&A) -> B,
-{
-	type IntoRefProjMut = FusedRefBlockingMut<P, A, B>;
-	fn into_ref_projection_mut(self) -> Self::IntoRefProjMut {
-		from_ref_blocking_mut(self)
-	}
-}
-
-impl<P, A: ?Sized, B> IntoFusedRefProjectionMut<A, B> for P
-where
-	P: FnMut(&A) -> B,
-{
-	type IntoFusedRefProjMut = FusedRefBlockingMut<P, A, B>;
-	fn into_fused_ref_projection_mut(self) -> Self::IntoFusedRefProjMut {
-		from_ref_blocking_mut(self)
 	}
 }
