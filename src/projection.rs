@@ -1,5 +1,5 @@
 //! Projections asynchronously transform an input `A` into an output `B`.
-//! 
+//!
 //! During this process, a reference to `self` is held.
 //!
 //! # Naming Scheme
