@@ -1,112 +1,118 @@
 //! Projections asynchronously transform an input `A` into an output `B`.
-//! During this process, a reference to `self` is held.
+//! During this process, a erence to `self` is held.
 
 use crate::handles::PinHandle;
 use core::{
 	future::Future,
 	mem::transmute,
 	pin::Pin,
-	ptr::NonNull,
 	task::{Context, Poll},
 };
 use futures_core::FusedFuture;
 use pin_project::pin_project;
 use tap::Pipe;
 
-pub trait RefProjectionMut<A: ?Sized, B> {
-	fn project_ref<'a>(
-		self: Pin<&'a mut Self>,
-		value: &'a A,
-	) -> PinHandle<'a, dyn 'a + Future<Output = B>>;
+pub trait ProjectionMut<A, B> {
+	fn project<'a>(self: Pin<&'a mut Self>, value: A) -> PinHandle<'a, dyn 'a + Future<Output = B>>
+	where
+		A: 'a;
 }
 
-pub trait FusedRefProjectionMut<A: ?Sized, B>: RefProjectionMut<A, B> {
-	fn project_ref_fused<'a>(
+pub trait FusedProjectionMut<A, B>: ProjectionMut<A, B> {
+	fn project_fused<'a>(
 		self: Pin<&'a mut Self>,
-		value: &'a A,
-	) -> PinHandle<'a, dyn 'a + FusedFuture<Output = B>>;
+		value: A,
+	) -> PinHandle<'a, dyn 'a + FusedFuture<Output = B>>
+	where
+		A: 'a;
 }
 
 #[allow(clippy::module_name_repetitions)]
-pub trait IntoRefProjectionMut<A: ?Sized, B>: Sized {
-	type IntoRefProjectionMut: RefProjectionMut<A, B>;
+pub trait IntoProjectionMut<A, B>: Sized {
+	type IntoProjectionMut: ProjectionMut<A, B>;
 	#[must_use]
-	fn into_ref_projection_mut(self) -> Self::IntoRefProjectionMut;
+	fn into_projection_mut(self) -> Self::IntoProjectionMut;
 }
 
 #[allow(clippy::module_name_repetitions)]
-pub trait IntoFusedRefProjectionMut<A: ?Sized, B>: IntoRefProjectionMut<A, B> {
-	type IntoFusedRefProjectionMut: FusedRefProjectionMut<A, B>;
+pub trait IntoFusedProjectionMut<A, B>: IntoProjectionMut<A, B> {
+	type IntoFusedProjectionMut: FusedProjectionMut<A, B>;
 	#[must_use]
-	fn into_fused_ref_projection_mut(self) -> Self::IntoFusedRefProjectionMut;
+	fn into_fused_projection_mut(self) -> Self::IntoFusedProjectionMut;
 }
 
 #[pin_project]
-pub struct RefBlockingMut<P, A: ?Sized, B>
+pub struct BlockingMut<P, A, B>
 where
-	P: FnMut(&A) -> B,
+	P: FnMut(A) -> B,
 {
 	projection: P,
-	param: Option<NonNull<A>>,
+	param: Option<A>,
 }
-unsafe impl<P, A: ?Sized, B> Send for RefBlockingMut<P, A, B>
+unsafe impl<P, A, B> Send for BlockingMut<P, A, B>
 where
-	P: Send + FnMut(&A) -> B,
+	P: Send + FnMut(A) -> B,
 	A: Sync,
 {
 }
-/// [`&RefBlockingMut`] is immutable.
-unsafe impl<P, A: ?Sized, B> Sync for RefBlockingMut<P, A, B> where P: FnMut(&A) -> B {}
+/// [`&BlockingMut`] is immutable.
+unsafe impl<P, A, B> Sync for BlockingMut<P, A, B> where P: FnMut(A) -> B {}
 
-impl<P, A: ?Sized, B> IntoRefProjectionMut<A, B> for RefBlockingMut<P, A, B>
+impl<P, A, B> IntoProjectionMut<A, B> for BlockingMut<P, A, B>
 where
-	P: FnMut(&A) -> B,
+	P: FnMut(A) -> B,
 {
-	type IntoRefProjectionMut = Self;
-	fn into_ref_projection_mut(self) -> Self::IntoRefProjectionMut {
+	type IntoProjectionMut = Self;
+	fn into_projection_mut(self) -> Self::IntoProjectionMut {
 		self
 	}
 }
 
-impl<P, A: ?Sized, B> IntoFusedRefProjectionMut<A, B> for RefBlockingMut<P, A, B>
+impl<P, A, B> IntoFusedProjectionMut<A, B> for BlockingMut<P, A, B>
 where
-	P: FnMut(&A) -> B,
+	P: FnMut(A) -> B,
 {
-	type IntoFusedRefProjectionMut = Self;
-	fn into_fused_ref_projection_mut(self) -> Self::IntoRefProjectionMut {
+	type IntoFusedProjectionMut = Self;
+	fn into_fused_projection_mut(self) -> Self::IntoProjectionMut {
 		self
 	}
 }
 
-impl<P, A: ?Sized, B> RefProjectionMut<A, B> for RefBlockingMut<P, A, B>
+impl<P, A, B> ProjectionMut<A, B> for BlockingMut<P, A, B>
 where
-	P: FnMut(&A) -> B,
+	P: FnMut(A) -> B,
 {
 	#[must_use]
-	fn project_ref<'a>(
+	fn project<'a>(
 		mut self: Pin<&'a mut Self>,
-		value: &'a A,
-	) -> PinHandle<'a, dyn 'a + Future<Output = B>> {
-		self.param = Some(value.into());
+		value: A,
+	) -> PinHandle<'a, dyn 'a + Future<Output = B>>
+	where
+		A: 'a,
+	{
+		self.param = Some(value);
 		PinHandle::new(
-			unsafe { transmute::<Pin<&mut Self>, Pin<&mut RefBlockingFuture<P, A, B>>>(self) },
+			unsafe { transmute::<Pin<&mut Self>, Pin<&mut BlockingFuture<P, A, B>>>(self) },
 			None,
 		)
 	}
 }
 
-impl<P, A: ?Sized, B> FusedRefProjectionMut<A, B> for RefBlockingMut<P, A, B>
+impl<P, A, B> FusedProjectionMut<A, B> for BlockingMut<P, A, B>
 where
-	P: FnMut(&A) -> B,
+	P: FnMut(A) -> B,
 {
 	#[must_use]
-	fn project_ref_fused<'a>(
+	fn project_fused<'a>(
 		mut self: Pin<&'a mut Self>,
-		value: &'a A,
-	) -> PinHandle<'a, dyn 'a + FusedFuture<Output = B>> {
-		self.param = Some(value.into());
+		value: A,
+	) -> PinHandle<'a, dyn 'a + FusedFuture<Output = B>>
+	where
+		A: 'a,
+	{
+		self.param = Some(value);
 		PinHandle::new(
-			unsafe { transmute::<Pin<&mut Self>, Pin<&mut RefBlockingFuture<P, A, B>>>(self) },
+			unsafe { transmute::<Pin<&mut Self>, Pin<&mut BlockingFuture<P, A, B>>>(self) },
 			None,
 		)
 	}
@@ -114,13 +120,13 @@ where
 
 #[repr(transparent)]
 #[pin_project]
-struct RefBlockingFuture<P, A: ?Sized, B>(#[pin] RefBlockingMut<P, A, B>)
+struct BlockingFuture<P, A, B>(#[pin] BlockingMut<P, A, B>)
 where
-	P: FnMut(&A) -> B;
+	P: FnMut(A) -> B;
 
-impl<P, A: ?Sized, B> Future for RefBlockingFuture<P, A, B>
+impl<P, A, B> Future for BlockingFuture<P, A, B>
 where
-	P: FnMut(&A) -> B,
+	P: FnMut(A) -> B,
 {
 	type Output = B;
 	fn poll(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
@@ -128,15 +134,15 @@ where
 		blocking
 			.param
 			.take()
-			.expect("`RefBlockingFuture::poll` called twice")
-			.pipe(|param_ptr| (blocking.projection)(unsafe { param_ptr.as_ref() }))
+			.expect("`BlockingFuture::poll` called twice")
+			.pipe(|param| (blocking.projection)(param))
 			.pipe(Poll::Ready)
 	}
 }
 
-impl<P, A: ?Sized, B> FusedFuture for RefBlockingFuture<P, A, B>
+impl<P, A, B> FusedFuture for BlockingFuture<P, A, B>
 where
-	P: FnMut(&A) -> B,
+	P: FnMut(A) -> B,
 {
 	fn is_terminated(&self) -> bool {
 		self.0.param.is_none()
@@ -144,22 +150,22 @@ where
 }
 
 #[must_use]
-pub fn from_ref_blocking_mut<P, A: ?Sized, B>(projection: P) -> RefBlockingMut<P, A, B>
+pub fn from_blocking_mut<P, A, B>(projection: P) -> BlockingMut<P, A, B>
 where
-	P: FnMut(&A) -> B,
+	P: FnMut(A) -> B,
 {
-	RefBlockingMut {
+	BlockingMut {
 		projection,
 		param: None,
 	}
 }
 
-impl<P, A: ?Sized, B> IntoRefProjectionMut<A, B> for P
+impl<P, A, B> IntoProjectionMut<A, B> for P
 where
-	P: FnMut(&A) -> B,
+	P: FnMut(A) -> B,
 {
-	type IntoRefProjectionMut = RefBlockingMut<P, A, B>;
-	fn into_ref_projection_mut(self) -> Self::IntoRefProjectionMut {
-		from_ref_blocking_mut(self)
+	type IntoProjectionMut = BlockingMut<P, A, B>;
+	fn into_projection_mut(self) -> Self::IntoProjectionMut {
+		from_blocking_mut(self)
 	}
 }
