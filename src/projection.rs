@@ -1,5 +1,29 @@
 //! Projections asynchronously transform an input `A` into an output `B`.
+//! 
 //! During this process, a reference to `self` is held.
+//!
+//! # Naming Scheme
+//!
+//! The traits in this module have names of the form `〚Into〛〚Fused〛〚Ref‖Mut〛Projection〚Mut〛`.
+//!
+//! ## `〚Into〛`
+//!
+//! This is analogous to the `Into` in [`IntoIterator`].
+//!
+//! Use traits with this fragment in their name as `impl` or generic type constraints to accept certain closures directly.
+//!
+//! ### Example
+//!
+//! ```
+//! use ergo_pin::ergo_pin;
+//! use percolate::projection::{IntoRefProjectionMut, RefProjectionMut};
+//!
+//! //TODO: Use just `IntoProjection` once available.
+//! #[ergo_pin]
+//! async fn project<A, B>(value: &A, projection: impl IntoRefProjectionMut<A,B>) -> B {
+//!     pin!(projection.into_ref_projection_mut()).project_ref(value).await
+//! }
+//! ```
 
 use crate::handles::PinHandle;
 use core::{
