@@ -32,6 +32,8 @@
 //!         .await                       // B
 //! }
 //! ```
+//! 
+//! ### `.into_…()` Proxy
 //!
 //! As the ~~`Into`~~`Projection` traits in this module are object-safe,
 //! it makes sense to use a proxy for the initial conversion:
