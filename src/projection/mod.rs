@@ -56,20 +56,14 @@
 //! //TODO: assert!(block_on(project(1, |x| async { x + 1 })) == 2)
 //! ```
 
-use crate::handles::{PinHandle, RunOnce, Runnable};
-use core::{
-	cell::UnsafeCell,
-	future::Future,
-	mem::transmute,
-	pin::Pin,
-	task::{Context, Poll},
-};
+use crate::handles::PinHandle;
+use core::{future::Future, pin::Pin};
 use futures_core::FusedFuture;
-use pin_project::pin_project;
-use tap::Pipe;
 
+mod fused_blocking_mut;
 mod fused_ref_blocking_mut;
 
+pub use fused_blocking_mut::{from_blocking_mut, FusedBlockingMut};
 pub use fused_ref_blocking_mut::{from_ref_blocking_mut, FusedRefBlockingMut};
 
 pub trait Projection<A, B>: ProjectionMut<A, B> {
@@ -142,154 +136,4 @@ pub trait IntoFusedRefProjectionMut<A: ?Sized, B>: Sized + IntoRefProjectionMut<
 	type IntoFusedRefProjMut: FusedRefProjectionMut<A, B> + IntoFusedRefProjectionMut<A, B>;
 	#[must_use]
 	fn into_fused_ref_projection_mut(self) -> Self::IntoFusedRefProjMut;
-}
-
-#[pin_project]
-pub struct FusedBlockingMut<P, A, B>
-where
-	P: Fn(A) -> B,
-{
-	projection: P,
-	param: UnsafeCell<Option<A>>,
-}
-unsafe impl<P, A, B> Send for FusedBlockingMut<P, A, B>
-where
-	P: Send + Fn(A) -> B,
-	A: Sync,
-{
-}
-/// [`&dyn FusedBlockingMut`] is immutable.
-unsafe impl<P, A, B> Sync for FusedBlockingMut<P, A, B> where P: Fn(A) -> B {}
-
-impl<P, A, B> IntoProjectionMut<A, B> for FusedBlockingMut<P, A, B>
-where
-	P: Fn(A) -> B,
-{
-	type IntoProjMut = Self;
-	fn into_projection_mut(self) -> Self::IntoProjMut {
-		self
-	}
-}
-
-impl<P, A, B> IntoFusedProjectionMut<A, B> for FusedBlockingMut<P, A, B>
-where
-	P: Fn(A) -> B,
-{
-	type IntoFusedProjMut = Self;
-	fn into_fused_projection_mut(self) -> Self::IntoFusedProjMut {
-		self
-	}
-}
-
-impl<P, A, B> ProjectionMut<A, B> for FusedBlockingMut<P, A, B>
-where
-	P: Fn(A) -> B,
-{
-	#[must_use]
-	fn project(self: Pin<&mut Self>, value: A) -> PinHandle<'_, dyn '_ + Future<Output = B>> {
-		unsafe { *self.param.get() = Some(value) };
-		let this = self.into_ref();
-		PinHandle::new(
-			unsafe { transmute::<Pin<&Self>, Pin<&mut FusedBlockingFuture<P, A, B>>>(this) },
-			Some(unsafe {
-				RunOnce::new(transmute::<Pin<&Self>, &ClearFusedBlocking<P, A, B>>(this))
-			}),
-		)
-	}
-}
-
-impl<P, A, B> FusedProjectionMut<A, B> for FusedBlockingMut<P, A, B>
-where
-	P: Fn(A) -> B,
-{
-	fn project_fused(
-		self: Pin<&mut Self>,
-		value: A,
-	) -> PinHandle<'_, dyn '_ + FusedFuture<Output = B>> {
-		unsafe { *self.param.get() = Some(value) };
-		let this = self.into_ref();
-		PinHandle::new(
-			unsafe { transmute::<Pin<&Self>, Pin<&mut FusedBlockingFuture<P, A, B>>>(this) },
-			Some(unsafe {
-				RunOnce::new(transmute::<Pin<&Self>, &ClearFusedBlocking<P, A, B>>(this))
-			}),
-		)
-	}
-}
-
-#[repr(transparent)]
-#[pin_project]
-struct FusedBlockingFuture<P, A, B>(#[pin] UnsafeCell<FusedBlockingMut<P, A, B>>)
-where
-	P: Fn(A) -> B;
-
-impl<P, A, B> Future for FusedBlockingFuture<P, A, B>
-where
-	P: Fn(A) -> B,
-{
-	type Output = B;
-	fn poll(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
-		let blocking = unsafe { Pin::new_unchecked(&*self.project().0.get()) };
-		unsafe { &mut *blocking.param.get() }
-			.take()
-			.expect("`RefBlockingFuture::poll` called twice")
-			.pipe(|param| (blocking.projection)(param))
-			.pipe(Poll::Ready)
-	}
-}
-
-impl<P, A, B> FusedFuture for FusedBlockingFuture<P, A, B>
-where
-	P: Fn(A) -> B,
-{
-	fn is_terminated(&self) -> bool {
-		unsafe { &*(*self.0.get()).param.get() }.is_none()
-	}
-}
-
-#[repr(transparent)]
-#[pin_project]
-struct ClearFusedBlocking<P, A, B>(#[pin] FusedBlockingMut<P, A, B>)
-where
-	P: Fn(A) -> B;
-impl<P, A, B> Runnable<(), ()> for ClearFusedBlocking<P, A, B>
-where
-	P: Fn(A) -> B,
-{
-	fn run(&self, _: ()) {
-		unsafe { &mut *self.0.param.get() }.take().pipe(drop)
-	}
-}
-
-//////
-
-#[must_use]
-pub fn from_blocking<P, A, B>(projection: P) -> FusedBlockingMut<P, A, B>
-where
-	P: Fn(A) -> B,
-{
-	FusedBlockingMut {
-		projection,
-		param: None.into(),
-	}
-}
-
-impl<P, A, B> IntoProjectionMut<A, B> for P
-where
-	P: Fn(A) -> B,
-{
-	type IntoProjMut = FusedBlockingMut<P, A, B>;
-	fn into_projection_mut(self) -> Self::IntoProjMut {
-		from_blocking(self)
-	}
-}
-
-impl<P, A, B> IntoFusedProjectionMut<A, B> for P
-where
-	P: Fn(A) -> B,
-{
-	type IntoFusedProjMut = FusedBlockingMut<P, A, B>;
-	fn into_fused_projection_mut(self) -> Self::IntoFusedProjMut {
-		from_blocking(self)
-	}
 }
