@@ -1,7 +1,7 @@
 use futures_core::FusedFuture;
 
 use crate::{
-	handles::PinHandle,
+	handles::PinHandleMut,
 	projection::{
 		self, FusedRefProjectionMut, IntoFusedRefProjectionMut, IntoRefProjectionMut,
 		RefProjectionMut,
@@ -13,7 +13,7 @@ pub trait PredicateMut<T: ?Sized>: RefProjectionMut<T, bool> {
 	fn test<'a>(
 		self: Pin<&'a mut Self>,
 		value: &'a T,
-	) -> PinHandle<'a, dyn 'a + Future<Output = bool>> {
+	) -> PinHandleMut<'a, dyn 'a + Future<Output = bool>> {
 		self.project_ref(value)
 	}
 }
@@ -23,7 +23,7 @@ pub trait FusedPredicateMut<T: ?Sized>: PredicateMut<T> + FusedRefProjectionMut<
 	fn test<'a>(
 		self: Pin<&'a mut Self>,
 		value: &'a T,
-	) -> PinHandle<'a, dyn 'a + FusedFuture<Output = bool>> {
+	) -> PinHandleMut<'a, dyn 'a + FusedFuture<Output = bool>> {
 		self.project_ref_fused(value)
 	}
 }

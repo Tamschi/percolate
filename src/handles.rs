@@ -22,12 +22,12 @@ impl<'a> RunOnce<'a, dyn Runnable<(), ()>> {
 	}
 }
 
-pub struct PinHandle<'a, T: ?Sized> {
+pub struct PinHandleMut<'a, T: ?Sized> {
 	pin: Pin<&'a mut T>,
 	on_drop: Option<RunOnce<'a, dyn 'a + Runnable<(), ()>>>,
 }
 
-impl<'a, T: ?Sized> PinHandle<'a, T> {
+impl<'a, T: ?Sized> PinHandleMut<'a, T> {
 	#[must_use]
 	pub fn new(
 		pin: Pin<&'a mut T>,
@@ -37,25 +37,25 @@ impl<'a, T: ?Sized> PinHandle<'a, T> {
 	}
 }
 
-impl<'a, T: ?Sized> Deref for PinHandle<'a, T> {
+impl<'a, T: ?Sized> Deref for PinHandleMut<'a, T> {
 	type Target = Pin<&'a mut T>;
 	fn deref(&self) -> &Self::Target {
 		&self.pin
 	}
 }
-impl<'a, T: ?Sized> DerefMut for PinHandle<'a, T> {
+impl<'a, T: ?Sized> DerefMut for PinHandleMut<'a, T> {
 	fn deref_mut(&mut self) -> &mut Self::Target {
 		&mut self.pin
 	}
 }
 
-impl<'a, T: ?Sized> Drop for PinHandle<'a, T> {
+impl<'a, T: ?Sized> Drop for PinHandleMut<'a, T> {
 	fn drop(&mut self) {
 		self.on_drop.take().map(RunOnce::run).unwrap_or_default()
 	}
 }
 
-impl<'a, T: ?Sized> Future for PinHandle<'a, T>
+impl<'a, T: ?Sized> Future for PinHandleMut<'a, T>
 where
 	T: Future,
 {
@@ -66,7 +66,7 @@ where
 	}
 }
 
-impl<'a, T: ?Sized> FusedFuture for PinHandle<'a, T>
+impl<'a, T: ?Sized> FusedFuture for PinHandleMut<'a, T>
 where
 	T: FusedFuture,
 {
@@ -75,7 +75,7 @@ where
 	}
 }
 
-impl<'a, T: ?Sized> Stream for PinHandle<'a, T>
+impl<'a, T: ?Sized> Stream for PinHandleMut<'a, T>
 where
 	T: Stream,
 {
@@ -90,7 +90,7 @@ where
 	}
 }
 
-impl<'a, T: ?Sized> FusedStream for PinHandle<'a, T>
+impl<'a, T: ?Sized> FusedStream for PinHandleMut<'a, T>
 where
 	T: FusedStream,
 {

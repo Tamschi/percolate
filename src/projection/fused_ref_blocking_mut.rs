@@ -1,15 +1,18 @@
 use super::{
 	FusedRefProjectionMut, IntoFusedRefProjectionMut, IntoRefProjectionMut, RefProjectionMut,
 };
-use crate::handles::PinHandle;
-use core::mem::transmute;
-use core::task::Context;
-use core::task::Poll;
-use core::{pin::Pin, ptr::NonNull};
+use crate::handles::PinHandleMut;
+use core::{
+	mem::transmute,
+	pin::Pin,
+	ptr::NonNull,
+	task::{Context, Poll},
+};
 use futures_core::{FusedFuture, Future};
 use pin_project::pin_project;
 use tap::Pipe;
 
+/// [`From<`](`From`)[`P: FnMut(&A) -> B>`](`FnMut`)[`>`](`From`)` + `[`FusedRefProjectionMut<A, B>`]
 #[pin_project]
 pub struct FusedRefBlockingMut<P, A: ?Sized, B>
 where
@@ -18,6 +21,8 @@ where
 	projection: P,
 	param: Option<NonNull<A>>,
 }
+
+// region: threading
 unsafe impl<P, A: ?Sized, B> Send for FusedRefBlockingMut<P, A, B>
 where
 	P: Send + FnMut(&A) -> B,
@@ -26,7 +31,8 @@ where
 }
 /// [`&dyn RefBlockingMut`] is immutable.
 unsafe impl<P, A: ?Sized, B> Sync for FusedRefBlockingMut<P, A, B> where P: FnMut(&A) -> B {}
-
+// endregion
+// region: projection impls
 impl<P, A: ?Sized, B> IntoRefProjectionMut<A, B> for FusedRefBlockingMut<P, A, B>
 where
 	P: FnMut(&A) -> B,
@@ -55,9 +61,9 @@ where
 	fn project_ref<'a>(
 		mut self: Pin<&'a mut Self>,
 		value: &'a A,
-	) -> PinHandle<'a, dyn 'a + Future<Output = B>> {
+	) -> PinHandleMut<'a, dyn 'a + Future<Output = B>> {
 		self.param = Some(value.into());
-		PinHandle::new(
+		PinHandleMut::new(
 			unsafe {
 				transmute::<Pin<&mut Self>, Pin<&mut FusedRefBlockingFutureMut<P, A, B>>>(self)
 			},
@@ -74,9 +80,9 @@ where
 	fn project_ref_fused<'a>(
 		mut self: Pin<&'a mut Self>,
 		value: &'a A,
-	) -> PinHandle<'a, dyn 'a + FusedFuture<Output = B>> {
+	) -> PinHandleMut<'a, dyn 'a + FusedFuture<Output = B>> {
 		self.param = Some(value.into());
-		PinHandle::new(
+		PinHandleMut::new(
 			unsafe {
 				transmute::<Pin<&mut Self>, Pin<&mut FusedRefBlockingFutureMut<P, A, B>>>(self)
 			},
@@ -84,7 +90,8 @@ where
 		)
 	}
 }
-
+// endregion
+// region: future
 #[repr(transparent)]
 #[pin_project]
 struct FusedRefBlockingFutureMut<P, A: ?Sized, B>(#[pin] FusedRefBlockingMut<P, A, B>)
@@ -115,15 +122,17 @@ where
 		self.0.param.is_none()
 	}
 }
-
-#[must_use]
-pub fn from_ref_blocking_mut<P, A: ?Sized, B>(projection: P) -> FusedRefBlockingMut<P, A, B>
+// endregion
+// region: conversions
+impl<P, A: ?Sized, B> From<P> for FusedRefBlockingMut<P, A, B>
 where
 	P: FnMut(&A) -> B,
 {
-	FusedRefBlockingMut {
-		projection,
-		param: None,
+	fn from(projection: P) -> Self {
+		Self {
+			projection,
+			param: None,
+		}
 	}
 }
 
@@ -133,7 +142,7 @@ where
 {
 	type IntoRefProjMut = FusedRefBlockingMut<P, A, B>;
 	fn into_ref_projection_mut(self) -> Self::IntoRefProjMut {
-		from_ref_blocking_mut(self)
+		self.into()
 	}
 }
 
@@ -143,6 +152,16 @@ where
 {
 	type IntoFusedRefProjMut = FusedRefBlockingMut<P, A, B>;
 	fn into_fused_ref_projection_mut(self) -> Self::IntoFusedRefProjMut {
-		from_ref_blocking_mut(self)
+		self.into()
 	}
 }
+
+/// [`FnMut(&A) -> B`](`FnMut`) → [`FusedRefProjectionMut<A, B>`]
+#[must_use]
+pub fn from_ref_blocking_mut<P, A: ?Sized, B>(projection: P) -> FusedRefBlockingMut<P, A, B>
+where
+	P: FnMut(&A) -> B,
+{
+	projection.into()
+}
+// endregion

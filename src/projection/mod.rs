@@ -12,6 +12,10 @@
 //!
 //! Use traits with this fragment in their name with `impl` or as generic type constraints to accept certain closures directly.
 //!
+//! Each type that implements a [`Projection<A, B>`] trait **should** also implement the matching [`IntoProjection<A, B, IntoProj = Self>`](`IntoProjection`) trait as identity transformation.
+//!
+//! > It's unfortunately not possible to specify this constraint directly on [`Projection<A, B>`] without losing meaningful object safety there.
+//!
 //! ### Example
 //!
 //! ```
@@ -24,10 +28,37 @@
 //!         projection.into_projection() // impl Projection<A, B>
 //!     )                                // Pin<&mut impl Projection<A, B>>
 //!         .into_ref()                  // Pin<&impl Projection<A, B>>
-//!         .project(value)              // Future<B>
+//!         .project(value)              // PinHandleMut<dyn Future<B>>
 //!         .await                       // B
 //! }
 //! ```
+//!
+//! As the ~~`Into`~~`Projection` traits in this module are object-safe,
+//! it makes sense to use a proxy for the initial conversion:
+//!
+//! ```
+//! use core::pin::Pin;
+//! use ergo_pin::ergo_pin;
+//! use percolate::projection::{IntoProjection, Projection};
+//!
+//! #[ergo_pin]
+//! async fn project_heavy<A, B>(value: A, projection: impl IntoProjection<A, B>) -> B {
+//!     return project_heavy_dyn(
+//!         value,
+//!         pin!(projection.into_projection()),
+//!     ).await;
+//!
+//!     async fn project_heavy_dyn<A, B>(value: A, projection: Pin<&mut dyn Projection<A, B>>) -> B {
+//!         // Do significant work in this function.
+//!         projection.project(value).await
+//!     }
+//! }
+//! ```
+//!
+//! The inner function is then monomorphic over the type of `projection`,
+//! which can significantly reduce the generated executable size.
+//! 
+//! TODO: Provide an attribute macro that can heuristically perform this transformation.
 //!
 //! ## Trailing `〚Mut〛`
 //!
@@ -48,7 +79,7 @@
 //!     pin!(
 //!         projection.into_projection_mut() // impl ProjectionMut<A, B>
 //!     )                                    // Pin<&mut impl ProjectionMut<A, B>>
-//!         .project(value)                  // Future<B>
+//!         .project(value)                  // PinHandleMut<dyn Future<B>>
 //!         .await                           // B
 //! }
 //!
@@ -56,7 +87,7 @@
 //! //TODO: assert!(block_on(project(1, |x| async { x + 1 })) == 2)
 //! ```
 
-use crate::handles::PinHandle;
+use crate::handles::PinHandleMut;
 use core::{future::Future, pin::Pin};
 use futures_core::FusedFuture;
 
@@ -67,37 +98,39 @@ pub use fused_blocking_mut::{from_blocking_mut, FusedBlockingMut};
 pub use fused_ref_blocking_mut::{from_ref_blocking_mut, FusedRefBlockingMut};
 
 pub trait Projection<A, B>: ProjectionMut<A, B> {
-	fn project(self: Pin<&Self>, value: A) -> PinHandle<'_, dyn '_ + Future<Output = B>>;
+	fn project(self: Pin<&Self>, value: A) -> PinHandleMut<'_, dyn '_ + Future<Output = B>>;
 }
 
 pub trait FusedProjection<A, B>: Projection<A, B> {
-	fn project_fused(self: Pin<&Self>, value: A)
-		-> PinHandle<'_, dyn '_ + FusedFuture<Output = B>>;
+	fn project_fused(
+		self: Pin<&Self>,
+		value: A,
+	) -> PinHandleMut<'_, dyn '_ + FusedFuture<Output = B>>;
 }
 
 pub trait ProjectionMut<A, B> {
-	fn project(self: Pin<&mut Self>, value: A) -> PinHandle<'_, dyn '_ + Future<Output = B>>;
+	fn project(self: Pin<&mut Self>, value: A) -> PinHandleMut<'_, dyn '_ + Future<Output = B>>;
 }
 
 pub trait FusedProjectionMut<A, B>: ProjectionMut<A, B> {
 	fn project_fused(
 		self: Pin<&mut Self>,
 		value: A,
-	) -> PinHandle<'_, dyn '_ + FusedFuture<Output = B>>;
+	) -> PinHandleMut<'_, dyn '_ + FusedFuture<Output = B>>;
 }
 
 pub trait RefProjectionMut<A: ?Sized, B> {
 	fn project_ref<'a>(
 		self: Pin<&'a mut Self>,
 		value: &'a A,
-	) -> PinHandle<'a, dyn 'a + Future<Output = B>>;
+	) -> PinHandleMut<'a, dyn 'a + Future<Output = B>>;
 }
 
 pub trait FusedRefProjectionMut<A: ?Sized, B>: RefProjectionMut<A, B> {
 	fn project_ref_fused<'a>(
 		self: Pin<&'a mut Self>,
 		value: &'a A,
-	) -> PinHandle<'a, dyn 'a + FusedFuture<Output = B>>;
+	) -> PinHandleMut<'a, dyn 'a + FusedFuture<Output = B>>;
 }
 
 pub trait IntoProjection<A, B>: Sized + IntoProjectionMut<A, B> {

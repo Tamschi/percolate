@@ -1,8 +1,8 @@
 use super::{FusedProjectionMut, IntoFusedProjectionMut, IntoProjectionMut, ProjectionMut};
-use crate::handles::{PinHandle, RunOnce, Runnable};
+use crate::handles::{PinHandleMut, RunOnce, Runnable};
 use core::{
 	cell::UnsafeCell,
-	intrinsics::transmute,
+	mem::transmute,
 	pin::Pin,
 	task::{Context, Poll},
 };
@@ -10,6 +10,7 @@ use futures_core::{FusedFuture, Future};
 use pin_project::pin_project;
 use tap::Pipe;
 
+/// [`From<`](`From`)[`P: FnMut(A) -> B>`](`FnMut`)[`>`](`From`)` + `[`FusedProjectionMut<A, B>`]
 #[pin_project]
 pub struct FusedBlockingMut<P, A, B>
 where
@@ -18,6 +19,8 @@ where
 	projection: UnsafeCell<P>,
 	param: UnsafeCell<Option<A>>,
 }
+
+// region: threading
 unsafe impl<P, A, B> Send for FusedBlockingMut<P, A, B>
 where
 	P: Send + FnMut(A) -> B,
@@ -26,7 +29,8 @@ where
 }
 /// [`&dyn FusedBlockingMut`] is immutable.
 unsafe impl<P, A, B> Sync for FusedBlockingMut<P, A, B> where P: FnMut(A) -> B {}
-
+// endregion
+// region: projection impls
 impl<P, A, B> IntoProjectionMut<A, B> for FusedBlockingMut<P, A, B>
 where
 	P: FnMut(A) -> B,
@@ -52,10 +56,10 @@ where
 	P: FnMut(A) -> B,
 {
 	#[must_use]
-	fn project(self: Pin<&mut Self>, value: A) -> PinHandle<'_, dyn '_ + Future<Output = B>> {
+	fn project(self: Pin<&mut Self>, value: A) -> PinHandleMut<'_, dyn '_ + Future<Output = B>> {
 		unsafe { *self.param.get() = Some(value) };
 		let this = self.into_ref();
-		PinHandle::new(
+		PinHandleMut::new(
 			unsafe { transmute::<Pin<&Self>, Pin<&mut FusedBlockingFuture<P, A, B>>>(this) },
 			Some(unsafe {
 				RunOnce::new(transmute::<Pin<&Self>, &ClearFusedBlocking<P, A, B>>(this))
@@ -71,10 +75,10 @@ where
 	fn project_fused(
 		self: Pin<&mut Self>,
 		value: A,
-	) -> PinHandle<'_, dyn '_ + FusedFuture<Output = B>> {
+	) -> PinHandleMut<'_, dyn '_ + FusedFuture<Output = B>> {
 		unsafe { *self.param.get() = Some(value) };
 		let this = self.into_ref();
-		PinHandle::new(
+		PinHandleMut::new(
 			unsafe { transmute::<Pin<&Self>, Pin<&mut FusedBlockingFuture<P, A, B>>>(this) },
 			Some(unsafe {
 				RunOnce::new(transmute::<Pin<&Self>, &ClearFusedBlocking<P, A, B>>(this))
@@ -82,7 +86,8 @@ where
 		)
 	}
 }
-
+// endregion
+// region: future
 #[repr(transparent)]
 #[pin_project]
 struct FusedBlockingFuture<P, A, B>(#[pin] UnsafeCell<FusedBlockingMut<P, A, B>>)
@@ -112,7 +117,8 @@ where
 		unsafe { &*(*self.0.get()).param.get() }.is_none()
 	}
 }
-
+// endregion
+// region: clear
 #[repr(transparent)]
 #[pin_project]
 struct ClearFusedBlocking<P, A, B>(#[pin] FusedBlockingMut<P, A, B>)
@@ -126,15 +132,17 @@ where
 		unsafe { &mut *self.0.param.get() }.take().pipe(drop)
 	}
 }
-
-#[must_use]
-pub fn from_blocking_mut<P, A, B>(projection: P) -> FusedBlockingMut<P, A, B>
+// endregion
+// region: conversions
+impl<P, A, B> From<P> for FusedBlockingMut<P, A, B>
 where
 	P: FnMut(A) -> B,
 {
-	FusedBlockingMut {
-		projection: projection.into(),
-		param: None.into(),
+	fn from(projection: P) -> Self {
+		Self {
+			projection: projection.into(),
+			param: None.into(),
+		}
 	}
 }
 
@@ -144,7 +152,7 @@ where
 {
 	type IntoProjMut = FusedBlockingMut<P, A, B>;
 	fn into_projection_mut(self) -> Self::IntoProjMut {
-		from_blocking_mut(self)
+		self.into()
 	}
 }
 
@@ -154,6 +162,16 @@ where
 {
 	type IntoFusedProjMut = FusedBlockingMut<P, A, B>;
 	fn into_fused_projection_mut(self) -> Self::IntoFusedProjMut {
-		from_blocking_mut(self)
+		self.into()
 	}
 }
+
+/// [`FnMut(A) -> B`](`FnMut`) → [`FusedProjectionMut<A, B>`]
+#[must_use]
+pub fn from_blocking_mut<P, A, B>(projection: P) -> FusedBlockingMut<P, A, B>
+where
+	P: FnMut(A) -> B,
+{
+	projection.into()
+}
+// endregion
