@@ -70,3 +70,5 @@ where
 {
 	projection::from_ref_blocking_mut(predicate_mut)
 }
+
+pub type FusedBlockingMut<P, T> = projection::FusedRefBlockingMut<P, T, bool>;
