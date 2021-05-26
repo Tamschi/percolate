@@ -33,7 +33,7 @@ where
 unsafe impl<P, A: ?Sized, B> Sync for FusedRefBlockingMut<P, A, B> where P: FnMut(&A) -> B {}
 // endregion
 // region: projection impls
-impl<P, A: ?Sized, B> IntoRefProjectionMut<A, B> for FusedRefBlockingMut<P, A, B>
+impl<P, A: ?Sized, B> IntoRefProjectionMut<A, B, Self> for FusedRefBlockingMut<P, A, B>
 where
 	P: FnMut(&A) -> B,
 {
@@ -43,7 +43,7 @@ where
 	}
 }
 
-impl<P, A: ?Sized, B> IntoFusedRefProjectionMut<A, B> for FusedRefBlockingMut<P, A, B>
+impl<P, A: ?Sized, B> IntoFusedRefProjectionMut<A, B, Self> for FusedRefBlockingMut<P, A, B>
 where
 	P: FnMut(&A) -> B,
 {
@@ -136,7 +136,7 @@ where
 	}
 }
 
-impl<P, A: ?Sized, B> IntoRefProjectionMut<A, B> for P
+impl<P, A: ?Sized, B> IntoRefProjectionMut<A, B, FusedRefBlockingMut<P, A, B>> for P
 where
 	P: FnMut(&A) -> B,
 {
@@ -146,7 +146,7 @@ where
 	}
 }
 
-impl<P, A: ?Sized, B> IntoFusedRefProjectionMut<A, B> for P
+impl<P, A: ?Sized, B> IntoFusedRefProjectionMut<A, B, FusedRefBlockingMut<P, A, B>> for P
 where
 	P: FnMut(&A) -> B,
 {

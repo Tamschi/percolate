@@ -23,7 +23,7 @@
 //! use percolate::projection::{IntoProjection, Projection};
 //!
 //! #[ergo_pin]
-//! async fn project<A, B>(value: A, projection: impl IntoProjection<A, B>) -> B {
+//! async fn project<A, B, X>(value: A, projection: impl IntoProjection<A, B, X>) -> B {
 //!     pin!(
 //!         projection.into_projection() // impl Projection<A, B>
 //!     )                                // Pin<&mut impl Projection<A, B>>
@@ -44,7 +44,7 @@
 //! use percolate::projection::{IntoProjection, Projection};
 //!
 //! #[ergo_pin]
-//! async fn project_heavy<A, B>(value: A, projection: impl IntoProjection<A, B>) -> B {
+//! async fn project_heavy<A, B, X>(value: A, projection: impl IntoProjection<A, B, X>) -> B {
 //!     return project_heavy_dyn(
 //!         value,
 //!         pin!(projection.into_projection()),
@@ -60,7 +60,7 @@
 //! The inner function is then monomorphic over the type of `projection`,
 //! which can significantly reduce the generated executable size.
 //!
-//! TODO: Provide an attribute macro that can heuristically perform this transformation.
+//! TODO: Provide an attribute macro that can heuristically perform this transformation, and also generate disambiguation args automatically.
 //!
 //! ## Trailing `〚Mut〛`
 //!
@@ -73,11 +73,12 @@
 //!
 //! ```
 //! use ergo_pin::ergo_pin;
-//! use percolate::projection::{IntoProjectionMut, ProjectionMut};
+//! use percolate::projection::{AsyncMut, IntoProjectionMut, ProjectionMut};
 //! use pollster::block_on;
+//! use tap::Conv;
 //!
 //! #[ergo_pin]
-//! async fn project<A, B>(value: A, projection: impl IntoProjectionMut<A, B>) -> B {
+//! async fn project<A, B, X>(value: A, projection: impl IntoProjectionMut<A, B, X>) -> B {
 //!     pin!(
 //!         projection.into_projection_mut() // impl ProjectionMut<A, B>
 //!     )                                    // Pin<&mut impl ProjectionMut<A, B>>
@@ -85,8 +86,16 @@
 //!         .await                           // B
 //! }
 //!
-//! assert_eq!(block_on(project(1, |x| x + 1)), 2);
-//! //TODO: assert!(block_on(project(1, |x| async { x + 1 })) == 2)
+//! assert_eq!(block_on(project(1, |x: u8| x + 1)), 2);
+//! assert_eq!(
+//!     block_on(project(
+//!         1,
+//!         // Type inference doesn't understand this on its own (yet), unfortunately.
+//!         // We can instead pass the projection pre-converted.
+//!         (|x| async move { x + 1 }).conv::<AsyncMut<_, _, _, _>>()),
+//!     ),
+//!     2,
+//! );
 //! ```
 
 use crate::handles::PinHandleMut;
@@ -137,40 +146,42 @@ pub trait FusedRefProjectionMut<A: ?Sized, B>: RefProjectionMut<A, B> {
 	) -> PinHandleMut<'a, dyn 'a + FusedFuture<Output = B>>;
 }
 
-pub trait IntoProjection<A, B>: Sized + IntoProjectionMut<A, B> {
-	type IntoProj: Projection<A, B> + IntoProjection<A, B>;
+pub trait IntoProjection<A, B, X>: Sized + IntoProjectionMut<A, B, X> {
+	type IntoProj: Projection<A, B> + IntoProjection<A, B, X>;
 	#[must_use]
 	fn into_projection(self) -> Self::IntoProj;
 }
 
-pub trait IntoFusedProjection<A, B>:
-	Sized + IntoProjection<A, B> + IntoFusedProjectionMut<A, B>
+pub trait IntoFusedProjection<A, B, X>:
+	Sized + IntoProjection<A, B, X> + IntoFusedProjectionMut<A, B, X>
 {
-	type IntoFusedProj: FusedProjection<A, B> + IntoFusedProjection<A, B>;
+	type IntoFusedProj: FusedProjection<A, B> + IntoFusedProjection<A, B, X>;
 	#[must_use]
 	fn into_fused_projection(self) -> Self::IntoProj;
 }
 
-pub trait IntoProjectionMut<A, B>: Sized {
-	type IntoProjMut: ProjectionMut<A, B> + IntoProjectionMut<A, B>;
+pub trait IntoProjectionMut<A, B, X>: Sized {
+	type IntoProjMut: ProjectionMut<A, B> + IntoProjectionMut<A, B, X>;
 	#[must_use]
 	fn into_projection_mut(self) -> Self::IntoProjMut;
 }
 
-pub trait IntoFusedProjectionMut<A, B>: Sized + IntoProjectionMut<A, B> {
-	type IntoFusedProjMut: FusedProjectionMut<A, B> + IntoFusedProjectionMut<A, B>;
+pub trait IntoFusedProjectionMut<A, B, X>: Sized + IntoProjectionMut<A, B, X> {
+	type IntoFusedProjMut: FusedProjectionMut<A, B> + IntoFusedProjectionMut<A, B, X>;
 	#[must_use]
 	fn into_fused_projection_mut(self) -> Self::IntoProjMut;
 }
 
-pub trait IntoRefProjectionMut<A: ?Sized, B>: Sized {
-	type IntoRefProjMut: RefProjectionMut<A, B> + IntoRefProjectionMut<A, B>;
+pub trait IntoRefProjectionMut<A: ?Sized, B, X>: Sized {
+	type IntoRefProjMut: RefProjectionMut<A, B> + IntoRefProjectionMut<A, B, X>;
 	#[must_use]
 	fn into_ref_projection_mut(self) -> Self::IntoRefProjMut;
 }
 
-pub trait IntoFusedRefProjectionMut<A: ?Sized, B>: Sized + IntoRefProjectionMut<A, B> {
-	type IntoFusedRefProjMut: FusedRefProjectionMut<A, B> + IntoFusedRefProjectionMut<A, B>;
+pub trait IntoFusedRefProjectionMut<A: ?Sized, B, X>:
+	Sized + IntoRefProjectionMut<A, B, X>
+{
+	type IntoFusedRefProjMut: FusedRefProjectionMut<A, B> + IntoFusedRefProjectionMut<A, B, X>;
 	#[must_use]
 	fn into_fused_ref_projection_mut(self) -> Self::IntoFusedRefProjMut;
 }
