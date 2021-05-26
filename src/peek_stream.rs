@@ -168,9 +168,9 @@ impl<Input: FusedStream, const CAPACITY: usize> PeekStream<Input, CAPACITY> {
 	/// * The conversion of `predicate` happens immediately.
 	/// * Buffers the next item, if available.
 	#[ergo_pin]
-	pub async fn next_if(
+	pub async fn next_if<P: PredicateMut<Input::Item> + IntoPredicateMut<Input::Item, P>>(
 		mut self: Pin<&mut Self>,
-		predicate: impl IntoPredicateMut<Input::Item>,
+		predicate: impl IntoPredicateMut<Input::Item, P>,
 	) -> Option<Input::Item> {
 		if pin!(predicate.into_predicate_mut())
 			.test(self.as_mut().peek_1().await?)

@@ -29,34 +29,37 @@ pub trait FusedPredicateMut<T: ?Sized>: PredicateMut<T> + FusedRefProjectionMut<
 }
 impl<P: ?Sized, T: ?Sized> FusedPredicateMut<T> for P where P: FusedRefProjectionMut<T, bool> {}
 
-pub trait IntoPredicateMut<T: ?Sized>: IntoRefProjectionMut<T, bool> {
-	type IntoPredMut: PredicateMut<T>;
-	#[must_use]
-	fn into_predicate_mut(self) -> Self::IntoPredMut;
-}
-impl<P, T: ?Sized> IntoPredicateMut<T> for P
+pub trait IntoPredicateMut<T: ?Sized, P>: IntoRefProjectionMut<T, bool, P>
 where
-	P: IntoRefProjectionMut<T, bool>,
+	P: PredicateMut<T> + IntoPredicateMut<T, P>,
 {
-	type IntoPredMut = Self::IntoRefProjMut;
-	fn into_predicate_mut(self) -> Self::IntoPredMut {
+	#[must_use]
+	fn into_predicate_mut(self) -> P;
+}
+impl<X, T: ?Sized, P> IntoPredicateMut<T, P> for X
+where
+	X: IntoRefProjectionMut<T, bool, P>,
+	P: PredicateMut<T> + IntoPredicateMut<T, P>,
+{
+	fn into_predicate_mut(self) -> P {
 		self.into_ref_projection_mut()
 	}
 }
 
-pub trait IntoFusedPredicateMut<T: ?Sized>:
-	IntoPredicateMut<T> + IntoFusedRefProjectionMut<T, bool>
-{
-	type IntoFusedPredMut: FusedPredicateMut<T>;
-	#[must_use]
-	fn into_fused_predicate_mut(self) -> Self::IntoFusedPredMut;
-}
-impl<P, T: ?Sized> IntoFusedPredicateMut<T> for P
+pub trait IntoFusedPredicateMut<T: ?Sized, P>:
+	IntoPredicateMut<T, P> + IntoFusedRefProjectionMut<T, bool, P>
 where
-	P: IntoFusedRefProjectionMut<T, bool>,
+	P: FusedPredicateMut<T> + IntoFusedPredicateMut<T, P>,
 {
-	type IntoFusedPredMut = Self::IntoFusedRefProjMut;
-	fn into_fused_predicate_mut(self) -> Self::IntoFusedPredMut {
+	#[must_use]
+	fn into_fused_predicate_mut(self) -> P;
+}
+impl<X, T: ?Sized, P> IntoFusedPredicateMut<T, P> for X
+where
+	X: IntoFusedRefProjectionMut<T, bool, P>,
+	P: FusedPredicateMut<T> + IntoFusedPredicateMut<T, P>,
+{
+	fn into_fused_predicate_mut(self) -> P {
 		self.into_fused_ref_projection_mut()
 	}
 }

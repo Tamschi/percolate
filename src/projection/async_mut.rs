@@ -40,13 +40,12 @@ where
 }
 // endregion
 // region: projection impls
-impl<P, A, F, B> IntoProjectionMut<A, B> for AsyncMut<P, A, F, B>
+impl<P, A, F, B> IntoProjectionMut<A, B, Self> for AsyncMut<P, A, F, B>
 where
 	P: FnMut(A) -> F,
 	F: Future<Output = B>,
 {
-	type IntoProjMut = Self;
-	fn into_projection_mut(self) -> Self::IntoProjMut {
+	fn into_projection_mut(self) -> Self {
 		self
 	}
 }
@@ -129,16 +128,15 @@ where
 	}
 }
 
-// impl<P, A, F, B> IntoProjectionMut<A, B> for P
-// where
-// 	P: FnMut(A) -> F,
-// 	F: Future<Output = B>,
-// {
-// 	type IntoProjMut = AsyncMut<P, A, F, B>;
-// 	fn into_projection_mut(self) -> Self::IntoProjMut {
-// 		self.into()
-// 	}
-// }
+impl<P, A, F, B> IntoProjectionMut<A, B, AsyncMut<P, A, F, B>> for P
+where
+	P: FnMut(A) -> F,
+	F: Future<Output = B>,
+{
+	fn into_projection_mut(self) -> AsyncMut<P, A, F, B> {
+		self.into()
+	}
+}
 
 /// [`FnMut(A) -> `](`FnMut`)[`Future<Output = B>`](`Future`) → [`ProjectionMut<A, B>`]
 #[must_use]

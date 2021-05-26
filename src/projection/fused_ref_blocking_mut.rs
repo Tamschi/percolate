@@ -33,22 +33,20 @@ where
 unsafe impl<P, A: ?Sized, B> Sync for FusedRefBlockingMut<P, A, B> where P: FnMut(&A) -> B {}
 // endregion
 // region: projection impls
-impl<P, A: ?Sized, B> IntoRefProjectionMut<A, B> for FusedRefBlockingMut<P, A, B>
+impl<P, A: ?Sized, B> IntoRefProjectionMut<A, B, Self> for FusedRefBlockingMut<P, A, B>
 where
 	P: FnMut(&A) -> B,
 {
-	type IntoRefProjMut = Self;
-	fn into_ref_projection_mut(self) -> Self::IntoRefProjMut {
+	fn into_ref_projection_mut(self) -> Self {
 		self
 	}
 }
 
-impl<P, A: ?Sized, B> IntoFusedRefProjectionMut<A, B> for FusedRefBlockingMut<P, A, B>
+impl<P, A: ?Sized, B> IntoFusedRefProjectionMut<A, B, Self> for FusedRefBlockingMut<P, A, B>
 where
 	P: FnMut(&A) -> B,
 {
-	type IntoFusedRefProjMut = Self;
-	fn into_fused_ref_projection_mut(self) -> Self::IntoFusedRefProjMut {
+	fn into_fused_ref_projection_mut(self) -> Self {
 		self
 	}
 }
@@ -136,22 +134,20 @@ where
 	}
 }
 
-impl<P, A: ?Sized, B> IntoRefProjectionMut<A, B> for P
+impl<P, A: ?Sized, B> IntoRefProjectionMut<A, B, FusedRefBlockingMut<P, A, B>> for P
 where
 	P: FnMut(&A) -> B,
 {
-	type IntoRefProjMut = FusedRefBlockingMut<P, A, B>;
-	fn into_ref_projection_mut(self) -> Self::IntoRefProjMut {
+	fn into_ref_projection_mut(self) -> FusedRefBlockingMut<P, A, B> {
 		self.into()
 	}
 }
 
-impl<P, A: ?Sized, B> IntoFusedRefProjectionMut<A, B> for P
+impl<P, A: ?Sized, B> IntoFusedRefProjectionMut<A, B, FusedRefBlockingMut<P, A, B>> for P
 where
 	P: FnMut(&A) -> B,
 {
-	type IntoFusedRefProjMut = FusedRefBlockingMut<P, A, B>;
-	fn into_fused_ref_projection_mut(self) -> Self::IntoFusedRefProjMut {
+	fn into_fused_ref_projection_mut(self) -> FusedRefBlockingMut<P, A, B> {
 		self.into()
 	}
 }
