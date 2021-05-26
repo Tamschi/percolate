@@ -24,10 +24,10 @@ where
 unsafe impl<P, A, B> Send for FusedBlockingMut<P, A, B>
 where
 	P: Send + FnMut(A) -> B,
-	A: Sync,
+	A: Send,
 {
 }
-/// [`&dyn FusedBlockingMut`] is immutable.
+/// [`&dyn FusedBlockingMut`] is immutable and doesn't allow access to stored data.
 unsafe impl<P, A, B> Sync for FusedBlockingMut<P, A, B> where P: FnMut(A) -> B {}
 // endregion
 // region: projection impls
@@ -60,9 +60,11 @@ where
 		unsafe { *self.param.get() = Some(value) };
 		let this = self.into_ref();
 		PinHandleMut::new(
-			unsafe { transmute::<Pin<&Self>, Pin<&mut FusedBlockingFuture<P, A, B>>>(this) },
+			unsafe { transmute::<Pin<&Self>, Pin<&mut FusedBlockingMutFuture<P, A, B>>>(this) },
 			Some(unsafe {
-				RunOnce::new(transmute::<Pin<&Self>, &ClearFusedBlocking<P, A, B>>(this))
+				RunOnce::new(transmute::<Pin<&Self>, &ClearFusedBlockingMut<P, A, B>>(
+					this,
+				))
 			}),
 		)
 	}
@@ -79,9 +81,11 @@ where
 		unsafe { *self.param.get() = Some(value) };
 		let this = self.into_ref();
 		PinHandleMut::new(
-			unsafe { transmute::<Pin<&Self>, Pin<&mut FusedBlockingFuture<P, A, B>>>(this) },
+			unsafe { transmute::<Pin<&Self>, Pin<&mut FusedBlockingMutFuture<P, A, B>>>(this) },
 			Some(unsafe {
-				RunOnce::new(transmute::<Pin<&Self>, &ClearFusedBlocking<P, A, B>>(this))
+				RunOnce::new(transmute::<Pin<&Self>, &ClearFusedBlockingMut<P, A, B>>(
+					this,
+				))
 			}),
 		)
 	}
@@ -90,11 +94,11 @@ where
 // region: future
 #[repr(transparent)]
 #[pin_project]
-struct FusedBlockingFuture<P, A, B>(#[pin] UnsafeCell<FusedBlockingMut<P, A, B>>)
+struct FusedBlockingMutFuture<P, A, B>(#[pin] UnsafeCell<FusedBlockingMut<P, A, B>>)
 where
 	P: FnMut(A) -> B;
 
-impl<P, A, B> Future for FusedBlockingFuture<P, A, B>
+impl<P, A, B> Future for FusedBlockingMutFuture<P, A, B>
 where
 	P: FnMut(A) -> B,
 {
@@ -103,13 +107,13 @@ where
 		let blocking = unsafe { Pin::new_unchecked(&*self.project().0.get()) };
 		unsafe { &mut *blocking.param.get() }
 			.take()
-			.expect("`FusedBlockingFuture::poll` called twice")
+			.expect("`FusedBlockingMutFuture::poll` called twice")
 			.pipe(|param| unsafe { &mut *blocking.projection.get() }(param))
 			.pipe(Poll::Ready)
 	}
 }
 
-impl<P, A, B> FusedFuture for FusedBlockingFuture<P, A, B>
+impl<P, A, B> FusedFuture for FusedBlockingMutFuture<P, A, B>
 where
 	P: FnMut(A) -> B,
 {
@@ -121,10 +125,10 @@ where
 // region: clear
 #[repr(transparent)]
 #[pin_project]
-struct ClearFusedBlocking<P, A, B>(#[pin] FusedBlockingMut<P, A, B>)
+struct ClearFusedBlockingMut<P, A, B>(#[pin] FusedBlockingMut<P, A, B>)
 where
 	P: FnMut(A) -> B;
-impl<P, A, B> Runnable<(), ()> for ClearFusedBlocking<P, A, B>
+impl<P, A, B> Runnable<(), ()> for ClearFusedBlockingMut<P, A, B>
 where
 	P: FnMut(A) -> B,
 {

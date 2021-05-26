@@ -1,3 +1,5 @@
+//! TODO: Mention that this uses the MAY MUST SHOULD etc. RFC and how that's stylised.
+
 #![doc(html_root_url = "https://docs.rs/percolate/0.0.1")]
 #![no_std]
 #![warn(clippy::pedantic)]

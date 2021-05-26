@@ -32,7 +32,7 @@
 //!         .await                       // B
 //! }
 //! ```
-//! 
+//!
 //! ### `.into_…()` Proxy
 //!
 //! As the ~~`Into`~~`Projection` traits in this module are object-safe,
@@ -59,7 +59,7 @@
 //!
 //! The inner function is then monomorphic over the type of `projection`,
 //! which can significantly reduce the generated executable size.
-//! 
+//!
 //! TODO: Provide an attribute macro that can heuristically perform this transformation.
 //!
 //! ## Trailing `〚Mut〛`
@@ -93,9 +93,11 @@ use crate::handles::PinHandleMut;
 use core::{future::Future, pin::Pin};
 use futures_core::FusedFuture;
 
+mod async_mut;
 mod fused_blocking_mut;
 mod fused_ref_blocking_mut;
 
+pub use async_mut::{from_async_mut, AsyncMut};
 pub use fused_blocking_mut::{from_blocking_mut, FusedBlockingMut};
 pub use fused_ref_blocking_mut::{from_ref_blocking_mut, FusedRefBlockingMut};
 
