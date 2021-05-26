@@ -34,7 +34,7 @@
 //! The projection itself is mutably borrowed.
 //!
 //! Note that most simple projections still require this to store their parameter,
-//! object-safety within a no-std crate doesn't leave room for temporary allocations.
+//! as object-safety within a no-std crate doesn't leave room for temporary allocations.
 //!
 //! ### Example
 //!
