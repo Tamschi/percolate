@@ -47,9 +47,9 @@
 //! async fn project<A, B>(value: A, projection: impl IntoProjectionMut<A, B>) -> B {
 //!     pin!(
 //!         projection.into_projection_mut() // impl ProjectionMut<A, B>
-//!     )                                // Pin<&mut impl Projection<A, B>>
-//!         .project(value)              // Future<B>
-//!         .await                       // B
+//!     )                                    // Pin<&mut impl ProjectionMut<A, B>>
+//!         .project(value)                  // Future<B>
+//!         .await                           // B
 //! }
 //!
 //! assert_eq!(block_on(project(1, |x| x + 1)), 2);
