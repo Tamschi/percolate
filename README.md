@@ -13,7 +13,11 @@
 [![open pull requests](https://img.shields.io/github/issues-pr-raw/Tamschi/percolate)](https://github.com/Tamschi/percolate/pulls)
 [![crev reviews](https://web.crev.dev/rust-reviews/badge/crev_count/percolate.svg)](https://web.crev.dev/rust-reviews/crate/percolate/)
 
-Yet another futures utility library.
+Yet another async utility library.
+
+> Note: The API will likely contain incomplete permutations during these first `0.0.x` versions.
+>
+> I mainly work on this crate as I need it for other projects of mine, but feel free to [file an issue](https://github.com/Tamschi/percolate/issues/new/choose) if you'd like to see a particular feature.
 
 ## Installation
 
@@ -26,7 +30,30 @@ cargo add percolate
 ## Example
 
 ```rust
-// TODO_EXAMPLE
+//! use ergo_pin::ergo_pin;
+//! use percolate::projection::{AsyncMut, IntoProjectionMut, ProjectionMut};
+//! use pollster::block_on;
+//! use tap::Conv;
+//!
+//! #[ergo_pin]
+//! async fn project<A, B, X>(value: A, projection: impl IntoProjectionMut<A, B, X>) -> B {
+//!     pin!(
+//!         projection.into_projection_mut() // impl ProjectionMut<A, B>
+//!     )                                    // Pin<&mut impl ProjectionMut<A, B>>
+//!         .project(value)                  // PinHandleMut<dyn Future<B>>
+//!         .await                           // B
+//! }
+//!
+//! assert_eq!(block_on(project(1, |x: u8| x + 1)), 2);
+//! assert_eq!(
+//!     block_on(project(
+//!         1,
+//!         // Type inference doesn't understand this on its own (yet), unfortunately.
+//!         // We can instead pass the projection pre-converted.
+//!         (|x| async move { x + 1 }).conv::<AsyncMut<_, _, _, _>>()),
+//!     ),
+//!     2,
+//! );
 ```
 
 ## License
