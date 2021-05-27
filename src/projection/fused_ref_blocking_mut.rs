@@ -12,7 +12,8 @@ use futures_core::{FusedFuture, Future};
 use pin_project::pin_project;
 use tap::Pipe;
 
-/// [`From<`](`From`)[`P: FnMut(&A) -> B>`](`FnMut`)[`>`](`From`)` + `[`FusedRefProjectionMut<A, B>`]
+/// [`From<`](`From`)[`P: FnMut(&A) -> B>`](`FnMut`)[`>`](`From`)
+/// and [`FusedRefProjectionMut<A, B>`]
 #[pin_project]
 pub struct FusedRefBlockingMut<P, A: ?Sized, B>
 where

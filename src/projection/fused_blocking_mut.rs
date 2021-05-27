@@ -10,7 +10,8 @@ use futures_core::{FusedFuture, Future};
 use pin_project::pin_project;
 use tap::Pipe;
 
-/// [`From<`](`From`)[`P: FnMut(A) -> B>`](`FnMut`)[`>`](`From`)` + `[`FusedProjectionMut<A, B>`]
+/// [`From<`](`From`)[`P: FnMut(A) -> B>`](`FnMut`)[`>`](`From`)
+/// and [`FusedProjectionMut<A, B>`]
 #[pin_project]
 pub struct FusedBlockingMut<P, A, B>
 where

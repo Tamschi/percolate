@@ -62,6 +62,16 @@
 //!
 //! TODO: Provide an attribute macro that can heuristically perform this transformation, and also generate disambiguation args automatically.
 //!
+//! # `〚Fused〛`
+//!
+//! These projections generate [`FusedFuture`]s, which keep track of whether they are allowed to be [`.poll(…)`](Future::poll)ed again through their [`.is_terminated()`](`FusedFuture::is_terminated`) method.
+//!
+//! Note that some adapters, like [`AsyncMut`], are dependently fused.
+//! If the underlying projection generates a [`FusedFuture`],
+//! then so do they *when called through their respective `Fused…` trait's `…fused(…)` method*.
+//!
+//! > Practically speaking, it's the same underlying type, but **this is not guaranteed!**
+//!
 //! ## Trailing `〚Mut〛`
 //!
 //! The projection itself is mutably borrowed.
