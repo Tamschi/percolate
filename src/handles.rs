@@ -1,3 +1,5 @@
+//! A few types needed to implement custom delegate logic on named types on stable.
+
 use core::{
 	future::Future,
 	ops::{Deref, DerefMut},
@@ -6,10 +8,12 @@ use core::{
 };
 use futures_core::{FusedFuture, FusedStream, Stream};
 
+/// Essentially [`Fn`].
 pub trait Runnable<Args, R> {
 	fn run(&self, args: Args) -> R;
 }
 
+/// Essentially [`FnOnce`].
 pub struct RunOnce<'a, F: 'a + ?Sized>(&'a F);
 impl<'a, F: ?Sized> RunOnce<'a, F> {
 	pub fn new(f: &'a F) -> Self {
@@ -22,6 +26,7 @@ impl<'a> RunOnce<'a, dyn Runnable<(), ()>> {
 	}
 }
 
+/// Dereferences to [`Pin<&'a mut T>`](`Pin`) and optionally runs custom drop logic via stored [`RunOnce<dyn Runnable>`]`.
 pub struct PinHandleMut<'a, T: ?Sized> {
 	pin: Pin<&'a mut T>,
 	on_drop: Option<RunOnce<'a, dyn 'a + Runnable<(), ()>>>,

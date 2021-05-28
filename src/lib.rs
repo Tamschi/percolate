@@ -1,4 +1,3 @@
-//! TODO: Mention that this uses the MAY MUST SHOULD etc. RFC and how that's stylised.
 //! Yet another async utility library.
 //!
 //! # About the Documentation
