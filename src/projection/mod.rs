@@ -71,6 +71,21 @@
 //! then so do they *when called through their respective `Fused…` trait's `…fused(…)` method*.
 //!
 //! > Practically speaking, it's the same underlying type, but **this is not guaranteed!**
+//! 
+//! - casting: `Fused` -> ~~`Fused`~~
+//! 
+//! # `〚Ref‖Mut〛`
+//! 
+//! TODO
+//! 
+//! Without generic associated types or traits that can be implemented over the "any" lifetime,
+//! it's unfortunately currently not possible to fully unify types over whether they accept their
+//! parameter by value or by (mutable) reference with "any" lifetime (in a way that's nice to work with.
+//! Some workarounds using [`fn`] as generic type parameter should work but would be less easy to use).
+//! 
+//! TODO
+//! 
+//! - casting: `Mut` -> `Ref` -> ~~`Mut`~~/~~`Ref`~~
 //!
 //! ## Trailing `〚Mut〛`
 //!
@@ -78,6 +93,8 @@
 //!
 //! Note that most simple projections still require this to store their parameter,
 //! as object-safety within a no-std crate doesn't leave room for temporary allocations.
+//! 
+//! - casting: ~~`Mut`~~ -> `Mut`
 //!
 //! ### Example
 //!
@@ -124,7 +141,7 @@ pub trait Projection<A, B>: ProjectionMut<A, B> {
 	fn project(self: Pin<&Self>, value: A) -> PinHandleMut<'_, dyn '_ + Future<Output = B>>;
 }
 
-pub trait FusedProjection<A, B>: Projection<A, B> {
+pub trait FusedProjection<A, B>: Projection<A, B> + FusedProjectionMut<A, B> {
 	fn project_fused(
 		self: Pin<&Self>,
 		value: A,
@@ -142,18 +159,86 @@ pub trait FusedProjectionMut<A, B>: ProjectionMut<A, B> {
 	) -> PinHandleMut<'_, dyn '_ + FusedFuture<Output = B>>;
 }
 
-pub trait RefProjectionMut<A: ?Sized, B> {
+/// alias: [`for<'a> Projection<&'a A, B>`](`Projection`)
+pub trait RefProjection<A: ?Sized, B>:
+	for<'a> Projection<&'a A, B> + RefProjectionMut<A, B>
+{
+	fn project_ref<'a>(
+		self: Pin<&'a Self>,
+		value: &'a A,
+	) -> PinHandleMut<'a, dyn 'a + Future<Output = B>>;
+}
+impl<P, A: ?Sized, B> RefProjection<A, B> for P
+where
+	P: for<'a> Projection<&'a A, B>,
+{
+	fn project_ref<'a>(
+		self: Pin<&'a Self>,
+		value: &'a A,
+	) -> PinHandleMut<'a, dyn 'a + Future<Output = B>> {
+		self.project(value)
+	}
+}
+
+/// alias: [`for<'a> FusedProjection<&'a A, B>`](`FusedProjection`)
+pub trait FusedRefProjection<A: ?Sized, B>:
+	for<'a> FusedProjection<&'a A, B> + RefProjection<A, B> + FusedRefProjectionMut<A, B>
+{
+	fn project_ref_fused<'a>(
+		self: Pin<&'a Self>,
+		value: &'a A,
+	) -> PinHandleMut<'a, dyn 'a + FusedFuture<Output = B>>;
+}
+impl<P, A: ?Sized, B> FusedRefProjection<A, B> for P
+where
+	P: for<'a> FusedProjection<&'a A, B>,
+{
+	fn project_ref_fused<'a>(
+		self: Pin<&'a Self>,
+		value: &'a A,
+	) -> PinHandleMut<'a, dyn 'a + FusedFuture<Output = B>> {
+		self.project_fused(value)
+	}
+}
+
+/// alias: [`for<'a> ProjectionMut<&'a A, B>`](`ProjectionMut`)
+pub trait RefProjectionMut<A: ?Sized, B>: for<'a> ProjectionMut<&'a A, B> {
 	fn project_ref<'a>(
 		self: Pin<&'a mut Self>,
 		value: &'a A,
 	) -> PinHandleMut<'a, dyn 'a + Future<Output = B>>;
 }
+impl<P, A: ?Sized, B> RefProjectionMut<A, B> for P
+where
+	P: for<'a> ProjectionMut<&'a A, B>,
+{
+	fn project_ref<'a>(
+		self: Pin<&'a mut Self>,
+		value: &'a A,
+	) -> PinHandleMut<'a, dyn 'a + Future<Output = B>> {
+		self.project(value)
+	}
+}
 
-pub trait FusedRefProjectionMut<A: ?Sized, B>: RefProjectionMut<A, B> {
+/// alias: [`for<'a> FusedProjectionMut<&'a A, B>`](`FusedProjectionMut`)
+pub trait FusedRefProjectionMut<A: ?Sized, B>:
+	for<'a> FusedProjectionMut<&'a A, B> + RefProjectionMut<A, B>
+{
 	fn project_ref_fused<'a>(
 		self: Pin<&'a mut Self>,
 		value: &'a A,
 	) -> PinHandleMut<'a, dyn 'a + FusedFuture<Output = B>>;
+}
+impl<P, A: ?Sized, B> FusedRefProjectionMut<A, B> for P
+where
+	P: for<'a> FusedProjectionMut<&'a A, B>,
+{
+	fn project_ref_fused<'a>(
+		self: Pin<&'a mut Self>,
+		value: &'a A,
+	) -> PinHandleMut<'a, dyn 'a + FusedFuture<Output = B>> {
+		self.project_fused(value)
+	}
 }
 
 pub trait IntoProjection<A, B, X>: Sized + IntoProjectionMut<A, B, X> {
@@ -182,14 +267,35 @@ pub trait IntoFusedProjectionMut<A, B, X>: Sized + IntoProjectionMut<A, B, X> {
 	fn into_fused_projection_mut(self) -> Self::IntoProjMut;
 }
 
-pub trait IntoRefProjectionMut<A: ?Sized, B, X>: Sized {
+pub trait IntoRefProjection<A: ?Sized, B, X>:
+	Sized + for<'a> IntoProjection<&'a A, B, X> + IntoRefProjectionMut<A, B, X>
+{
+	type IntoRefProj: RefProjection<A, B> + IntoRefProjection<A, B, X>;
+	#[must_use]
+	fn into_ref_projection_mut(self) -> Self::IntoRefProj;
+}
+
+pub trait IntoRefProjectionMut<A: ?Sized, B, X>:
+	Sized + for<'a> IntoProjectionMut<&'a A, B, X>
+{
 	type IntoRefProjMut: RefProjectionMut<A, B> + IntoRefProjectionMut<A, B, X>;
 	#[must_use]
 	fn into_ref_projection_mut(self) -> Self::IntoRefProjMut;
 }
 
+pub trait IntoFusedRefProjection<A: ?Sized, B, X>:
+	Sized
+	+ for<'a> IntoFusedProjection<&'a A, B, X>
+	+ IntoRefProjection<A, B, X>
+	+ IntoFusedRefProjectionMut<A, B, X>
+{
+	type IntoFusedRefProj: FusedRefProjection<A, B> + IntoFusedRefProjection<A, B, X>;
+	#[must_use]
+	fn into_fused_ref_projection(self) -> Self::IntoFusedRefProj;
+}
+
 pub trait IntoFusedRefProjectionMut<A: ?Sized, B, X>:
-	Sized + IntoRefProjectionMut<A, B, X>
+	Sized + for<'a> IntoFusedProjectionMut<&'a A, B, X> + IntoRefProjectionMut<A, B, X>
 {
 	type IntoFusedRefProjMut: FusedRefProjectionMut<A, B> + IntoFusedRefProjectionMut<A, B, X>;
 	#[must_use]
