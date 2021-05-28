@@ -45,6 +45,6 @@ pub mod readme {
 }
 
 pub mod handles;
-pub mod peek_stream;
 pub mod predicate;
 pub mod projection;
+pub mod stream;
