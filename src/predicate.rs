@@ -13,16 +13,15 @@
 //! use percolate::predicate::{IntoPredicateMut, PredicateMut};
 //!
 //! #[ergo_pin]
-//! async fn filter_future<T, X>(source: impl Future<Output = T>, predicate: impl IntoPredicateMut<T, X>) -> Option<T> {
-//!     return filter_future_dyn(
-//!         source,
-//!         pin!(predicate.into_predicate_mut()),
-//!     ).await;
-//!
-//!     async fn filter_future_dyn<T>(source: impl Future<Output = T>, predicate: Pin<&mut dyn PredicateMut<T>>) -> Option<T> {
-//!         let item = source.await;
-//!         predicate.test(&item).await.then(move || item)
-//!     }
+//! async fn filter_future<T, X>(
+//!     source: impl Future<Output = T>,
+//!     predicate: impl IntoPredicateMut<T, X>,
+//! ) -> Option<T> {
+//!     let item = source.await;
+//!     pin!(predicate.into_predicate_mut())
+//!         .test(&item)
+//!         .await
+//!         .then(move || item)
 //! }
 //! ```
 
