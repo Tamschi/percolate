@@ -8,8 +8,8 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/Tamschi/percolate"
 homepage = "https://github.com/Tamschi/percolate/tree/v0.0.1"
 documentation = "https://docs.rs/percolate/0.0.1"
-keywords = [] #TODO
-categories = [] #TODO
+keywords = ["async", "Future", "Stream", "traits"]
+categories = ["rust-patterns", "no-std"]
 readme = "README.md"
 include = [
 	"**/*.rs",
