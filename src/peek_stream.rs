@@ -92,6 +92,7 @@ impl<const MODULE: usize> AddAssign<usize> for Modular<MODULE> {
 	}
 }
 
+/// A fixed-size-buffered lookahead [`Stream`] adapter.
 #[pin_project]
 pub struct PeekStream<Input: FusedStream, const CAPACITY: usize> {
 	#[pin]
