@@ -71,21 +71,26 @@
 //! then so do they *when called through their respective `Fused…` trait's `…fused(…)` method*.
 //!
 //! > Practically speaking, it's the same underlying type, but **this is not guaranteed!**
-//! 
+//!
 //! - casting: `Fused` -> ~~`Fused`~~
-//! 
+//!
 //! # `〚Ref‖Mut〛`
-//! 
-//! TODO
-//! 
+//!
+//! Types with `Ref` or `Mut` in their name in this position project from an "any lifetime" reference (`&'_ A`) or mutable reference (`&'_ mut A`) to their output type.
+//! This reference stays borrowed for at least as long as the resulting [`PinHandleMut`]/[`Future`] exists.
+//!
 //! Without generic associated types or traits that can be implemented over the "any" lifetime,
 //! it's unfortunately currently not possible to fully unify types over whether they accept their
 //! parameter by value or by (mutable) reference with "any" lifetime (in a way that's nice to work with.
 //! Some workarounds using [`fn`] as generic type parameter should work but would be less easy to use).
-//! 
-//! TODO
-//! 
-//! - casting: `Mut` -> `Ref` -> ~~`Mut`~~/~~`Ref`~~
+//!
+//! The object-safe ~~`Into`~~`…Projection…` traits like [`RefProjection<A, B>`] can already be expressed as trait aliases,
+//! in this case for example over [`for<'a> Projection<&'a A, B>`](`Projection`), and are blanket-implemented as such.
+//!
+//! When implementing a custom projection, implement the underlying ~~`Ref`~~/~~`Mut`~~trait for any lifetime.
+//! The aliased shorthand then becomes available automatically.
+//!
+//! - casting: `Mut` -> `Ref` -> ~~`Mut`~~, `Ref` -> ~~`Ref`~~
 //!
 //! ## Trailing `〚Mut〛`
 //!
@@ -93,7 +98,7 @@
 //!
 //! Note that most simple projections still require this to store their parameter,
 //! as object-safety within a no-std crate doesn't leave room for temporary allocations.
-//! 
+//!
 //! - casting: ~~`Mut`~~ -> `Mut`
 //!
 //! ### Example
