@@ -14,7 +14,10 @@
 //!
 //! Each type that implements a [`Projection<A, B>`] trait **should** also implement the matching [`IntoProjection<A, B, IntoProj = Self>`](`IntoProjection`) trait as identity transformation.
 //!
-//! > It's unfortunately not possible to specify this constraint directly on [`Projection<A, B>`] without losing meaningful object safety there.
+//! > It's unfortunately (seemingly) not possible to specify this constraint directly on [`Projection<A, B>`] without losing meaningful object safety there.
+//! >
+//! > If you have any idea how to add this constraint without a lot of repeating boiler plate, then please let me know!
+//! > I'll add it in a future version with a breaking Semver change in that case.
 //!
 //! ### Example
 //!
