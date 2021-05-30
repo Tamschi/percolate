@@ -2,12 +2,12 @@
 
 <!-- markdownlint-disable no-trailing-punctuation -->
 
-## next
+## 0.0.2
 
-TODO: Date
+2021-05-30
 
 - **Breaking Changes:**
-  - Fixed named of `IntoRefProjection::into_ref_projection` from `into_ref_projection_mut`
+  - Fixed name of `IntoRefProjection::into_ref_projection` from `into_ref_projection_mut`
   - `RefProjection` traits require `MutProjection` traits
   - ~~`Mut`~~`Predicate` traits require `MutPredicate` traits
 
