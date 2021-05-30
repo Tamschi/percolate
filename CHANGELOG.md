@@ -6,6 +6,18 @@
 
 TODO: Date
 
+- **Breaking Changes:**
+  - Fixed named of `IntoRefProjection::into_ref_projection` from `into_ref_projection_mut`
+  - `RefProjection` traits require `MutProjection` traits
+  - ~~`Mut`~~`Predicate` traits require `MutPredicate` traits
+
+- New Features:
+  - `MutProjection` traits
+  - `MutPredicate` traits
+  - `FusedMutBlockingMut` `Fn(&mut A) -> B` adapter
+  - `PeekStream::{peek_1_mut, peek_n_mut}` methods
+  - `PeekStream::next_if_mut` method
+
 - Revisions:
   - Fixed README example
 
