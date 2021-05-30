@@ -1,3 +1,4 @@
+use crate::predicate::{IntoMutPredicateMut, IntoPredicateMut, MutPredicateMut, PredicateMut};
 use core::{
 	convert::TryFrom,
 	mem::MaybeUninit,
@@ -11,8 +12,6 @@ use futures_core::{FusedStream, Stream};
 use futures_util::StreamExt as _;
 use pin_project::pin_project;
 use tap::{Conv as _, Pipe as _};
-
-use crate::predicate::{IntoPredicateMut, PredicateMut};
 
 // A neat generic implementation isn't yet possible because types of const generic parameters can't depend on other type parameters yet.
 // TODO: Check maths terms.
@@ -136,6 +135,10 @@ impl<Input: FusedStream, const CAPACITY: usize> PeekStream<Input, CAPACITY> {
 		self.peek_n(NonZeroUsize::new(1).expect("unreachable"))
 			.await
 	}
+	pub async fn peek_1_mut(self: Pin<&mut Self>) -> Option<&mut Input::Item> {
+		self.peek_n_mut(NonZeroUsize::new(1).expect("unreachable"))
+			.await
+	}
 
 	/// Peeks `depth` items ahead in `self`.
 	///
@@ -143,6 +146,16 @@ impl<Input: FusedStream, const CAPACITY: usize> PeekStream<Input, CAPACITY> {
 	///
 	/// Iff `depth` exceeds `CAPACITY`.
 	pub async fn peek_n(self: Pin<&mut Self>, depth: NonZeroUsize) -> Option<&Input::Item> {
+		self.peek_n_mut(depth).await.map(|item| &*item)
+	}
+
+	/// Peeks `depth` items ahead in `self`,
+	/// allowing the caller to mutate the peeked item if available.
+	///
+	/// # Panics
+	///
+	/// Iff `depth` exceeds `CAPACITY`.
+	pub async fn peek_n_mut(self: Pin<&mut Self>, depth: NonZeroUsize) -> Option<&mut Input::Item> {
 		assert!(
 			depth.get() <= CAPACITY,
 			"`depth` out of range `0..CAPACITY`"
@@ -159,7 +172,7 @@ impl<Input: FusedStream, const CAPACITY: usize> PeekStream<Input, CAPACITY> {
 		}
 		unsafe {
 			// Safety: Assuredly written to directly above or earlier than that.
-			&*this.buffer[(*this.start + depth.get()).conv::<usize>()].as_ptr()
+			&mut *this.buffer[(*this.start + depth.get()).conv::<usize>()].as_mut_ptr()
 		}
 		.pipe(Some)
 	}
@@ -175,6 +188,26 @@ impl<Input: FusedStream, const CAPACITY: usize> PeekStream<Input, CAPACITY> {
 	) -> Option<Input::Item> {
 		if pin!(predicate.into_predicate_mut())
 			.test(self.as_mut().peek_1().await?)
+			.await
+		{
+			self.next().await
+		} else {
+			None
+		}
+	}
+
+	/// Retrieves the next item only if it satisfies `predicate`,
+	/// optionally mutating it during the check.
+	///
+	/// * The conversion of `predicate` happens immediately.
+	/// * Buffers the next item, if available.
+	#[ergo_pin]
+	pub async fn next_if_mut<X>(
+		mut self: Pin<&mut Self>,
+		predicate: impl IntoMutPredicateMut<Input::Item, X>,
+	) -> Option<Input::Item> {
+		if pin!(predicate.into_mut_predicate_mut())
+			.test_mut(self.as_mut().peek_1_mut().await?)
 			.await
 		{
 			self.next().await

@@ -28,7 +28,8 @@
 use crate::{
 	handles::PinHandleMut,
 	projection::{
-		self, FusedRefProjectionMut, IntoFusedRefProjectionMut, IntoRefProjectionMut,
+		self, FusedMutProjectionMut, FusedRefProjectionMut, IntoFusedMutProjectionMut,
+		IntoFusedRefProjectionMut, IntoMutProjectionMut, IntoRefProjectionMut, MutProjectionMut,
 		RefProjectionMut,
 	},
 };
@@ -36,7 +37,7 @@ use core::{future::Future, pin::Pin};
 use futures_core::FusedFuture;
 
 /// alias: [`RefProjectionMut<T, bool>`]
-pub trait PredicateMut<T: ?Sized>: RefProjectionMut<T, bool> {
+pub trait PredicateMut<T: ?Sized>: RefProjectionMut<T, bool> + MutPredicateMut<T> {
 	fn test<'a>(
 		self: Pin<&'a mut Self>,
 		value: &'a T,
@@ -46,8 +47,21 @@ pub trait PredicateMut<T: ?Sized>: RefProjectionMut<T, bool> {
 }
 impl<P: ?Sized, T: ?Sized> PredicateMut<T> for P where P: RefProjectionMut<T, bool> {}
 
+/// alias: [`MutProjectionMut<T, bool>`]
+pub trait MutPredicateMut<T: ?Sized>: MutProjectionMut<T, bool> {
+	fn test_mut<'a>(
+		self: Pin<&'a mut Self>,
+		value: &'a mut T,
+	) -> PinHandleMut<'a, dyn 'a + Future<Output = bool>> {
+		self.project_mut(value)
+	}
+}
+impl<P: ?Sized, T: ?Sized> MutPredicateMut<T> for P where P: MutProjectionMut<T, bool> {}
+
 /// alias: [`FusedRefProjectionMut<T, bool>`]
-pub trait FusedPredicateMut<T: ?Sized>: FusedRefProjectionMut<T, bool> + PredicateMut<T> {
+pub trait FusedPredicateMut<T: ?Sized>:
+	FusedRefProjectionMut<T, bool> + PredicateMut<T> + FusedMutPredicateMut<T>
+{
 	fn test<'a>(
 		self: Pin<&'a mut Self>,
 		value: &'a T,
@@ -57,8 +71,23 @@ pub trait FusedPredicateMut<T: ?Sized>: FusedRefProjectionMut<T, bool> + Predica
 }
 impl<P: ?Sized, T: ?Sized> FusedPredicateMut<T> for P where P: FusedRefProjectionMut<T, bool> {}
 
+/// alias: [`FusedMutProjectionMut<T, bool>`]
+pub trait FusedMutPredicateMut<T: ?Sized>:
+	FusedMutProjectionMut<T, bool> + MutPredicateMut<T>
+{
+	fn test<'a>(
+		self: Pin<&'a mut Self>,
+		value: &'a mut T,
+	) -> PinHandleMut<'a, dyn 'a + FusedFuture<Output = bool>> {
+		self.project_mut_fused(value)
+	}
+}
+impl<P: ?Sized, T: ?Sized> FusedMutPredicateMut<T> for P where P: FusedMutProjectionMut<T, bool> {}
+
 /// alias: [`IntoRefProjectionMut<T, bool, X>`]
-pub trait IntoPredicateMut<T: ?Sized, X>: IntoRefProjectionMut<T, bool, X> {
+pub trait IntoPredicateMut<T: ?Sized, X>:
+	IntoRefProjectionMut<T, bool, X> + IntoMutPredicateMut<T, X>
+{
 	type IntoPredMut: PredicateMut<T>;
 	#[must_use]
 	fn into_predicate_mut(self) -> Self::IntoPredMut;
@@ -73,9 +102,25 @@ where
 	}
 }
 
+/// alias: [`IntoMutProjectionMut<T, bool, X>`]
+pub trait IntoMutPredicateMut<T: ?Sized, X>: IntoMutProjectionMut<T, bool, X> {
+	type IntoMutPredMut: MutPredicateMut<T>;
+	#[must_use]
+	fn into_mut_predicate_mut(self) -> Self::IntoMutPredMut;
+}
+impl<P, T: ?Sized, X> IntoMutPredicateMut<T, X> for P
+where
+	P: IntoMutProjectionMut<T, bool, X>,
+{
+	type IntoMutPredMut = Self::IntoMutProjMut;
+	fn into_mut_predicate_mut(self) -> Self::IntoMutPredMut {
+		self.into_mut_projection_mut()
+	}
+}
+
 /// alias: [`IntoFusedRefProjectionMut<T, bool, X>`]
 pub trait IntoFusedPredicateMut<T: ?Sized, X>:
-	IntoFusedRefProjectionMut<T, bool, X> + IntoPredicateMut<T, X>
+	IntoFusedRefProjectionMut<T, bool, X> + IntoPredicateMut<T, X> + IntoFusedMutPredicateMut<T, X>
 {
 	type IntoFusedPredMut: FusedPredicateMut<T>;
 	#[must_use]
@@ -88,6 +133,24 @@ where
 	type IntoFusedPredMut = Self::IntoFusedRefProjMut;
 	fn into_fused_predicate_mut(self) -> Self::IntoFusedPredMut {
 		self.into_fused_ref_projection_mut()
+	}
+}
+
+/// alias: [`IntoFusedMutProjectionMut<T, bool, X>`]
+pub trait IntoFusedMutPredicateMut<T: ?Sized, X>:
+	IntoFusedMutProjectionMut<T, bool, X> + IntoMutPredicateMut<T, X>
+{
+	type IntoFusedMutPredMut: FusedMutPredicateMut<T>;
+	#[must_use]
+	fn into_fused_mut_predicate_mut(self) -> Self::IntoFusedMutPredMut;
+}
+impl<P, T: ?Sized, X> IntoFusedMutPredicateMut<T, X> for P
+where
+	P: IntoFusedMutProjectionMut<T, bool, X>,
+{
+	type IntoFusedMutPredMut = Self::IntoFusedMutProjMut;
+	fn into_fused_mut_predicate_mut(self) -> Self::IntoFusedMutPredMut {
+		self.into_fused_mut_projection_mut()
 	}
 }
 

@@ -6,7 +6,7 @@
 
 ![Rust 1.51](https://img.shields.io/static/v1?logo=Rust&label=&message=1.51&color=grey)
 [![CI](https://github.com/Tamschi/percolate/workflows/CI/badge.svg?branch=unstable)](https://github.com/Tamschi/percolate/actions?query=workflow%3ACI+branch%3Aunstable)
-![Crates.io - License](https://img.shields.io/crates/l/percolate/0.0.1)
+![Crates.io - License](https://img.shields.io/crates/l/percolate/0.0.2)
 
 [![GitHub](https://img.shields.io/static/v1?logo=GitHub&label=&message=%20&color=grey)](https://github.com/Tamschi/percolate)
 [![open issues](https://img.shields.io/github/issues-raw/Tamschi/percolate)](https://github.com/Tamschi/percolate/issues)
@@ -30,30 +30,30 @@ cargo add percolate
 ## Example
 
 ```rust
-//! use ergo_pin::ergo_pin;
-//! use percolate::projection::{AsyncMut, IntoProjectionMut, ProjectionMut};
-//! use pollster::block_on;
-//! use tap::Conv;
-//!
-//! #[ergo_pin]
-//! async fn project<A, B, X>(value: A, projection: impl IntoProjectionMut<A, B, X>) -> B {
-//!     pin!(
-//!         projection.into_projection_mut() // impl ProjectionMut<A, B>
-//!     )                                    // Pin<&mut impl ProjectionMut<A, B>>
-//!         .project(value)                  // PinHandleMut<dyn Future<B>>
-//!         .await                           // B
-//! }
-//!
-//! assert_eq!(block_on(project(1, |x: u8| x + 1)), 2);
-//! assert_eq!(
-//!     block_on(project(
-//!         1,
-//!         // Type inference doesn't understand this on its own (yet), unfortunately.
-//!         // We can instead pass the projection pre-converted.
-//!         (|x| async move { x + 1 }).conv::<AsyncMut<_, _, _, _>>()),
-//!     ),
-//!     2,
-//! );
+use ergo_pin::ergo_pin;
+use percolate::projection::{AsyncMut, IntoProjectionMut, ProjectionMut};
+use pollster::block_on;
+use tap::Conv;
+
+#[ergo_pin]
+async fn project<A, B, X>(value: A, projection: impl IntoProjectionMut<A, B, X>) -> B {
+    pin!(
+        projection.into_projection_mut() // impl ProjectionMut<A, B>
+    )                                    // Pin<&mut impl ProjectionMut<A, B>>
+        .project(value)                  // PinHandleMut<dyn Future<B>>
+        .await                           // B
+}
+
+assert_eq!(block_on(project(1, |x: u8| x + 1)), 2);
+assert_eq!(
+    block_on(project(
+        1,
+        // Type inference doesn't understand this on its own (yet), unfortunately.
+        // We can instead pass the projection pre-converted.
+        (|x| async move { x + 1 }).conv::<AsyncMut<_, _, _, _>>()),
+    ),
+    2,
+);
 ```
 
 ## License

@@ -1,6 +1,7 @@
 use super::{
-	FusedProjectionMut, IntoFusedProjectionMut, IntoFusedRefProjectionMut, IntoProjectionMut,
-	IntoRefProjectionMut, ProjectionMut,
+	FusedProjectionMut, IntoFusedMutProjectionMut, IntoFusedProjectionMut,
+	IntoFusedRefProjectionMut, IntoMutProjectionMut, IntoProjectionMut, IntoRefProjectionMut,
+	ProjectionMut,
 };
 use crate::handles::PinHandleMut;
 use core::{
@@ -45,12 +46,32 @@ where
 	}
 }
 
+impl<P, A: ?Sized, B> IntoMutProjectionMut<A, B, Self> for FusedRefBlockingMut<P, A, B>
+where
+	P: FnMut(&A) -> B,
+{
+	type IntoMutProjMut = Self;
+	fn into_mut_projection_mut(self) -> Self::IntoMutProjMut {
+		self
+	}
+}
+
 impl<P, A: ?Sized, B> IntoFusedRefProjectionMut<A, B, Self> for FusedRefBlockingMut<P, A, B>
 where
 	P: FnMut(&A) -> B,
 {
 	type IntoFusedRefProjMut = Self;
 	fn into_fused_ref_projection_mut(self) -> Self::IntoFusedRefProjMut {
+		self
+	}
+}
+
+impl<P, A: ?Sized, B> IntoFusedMutProjectionMut<A, B, Self> for FusedRefBlockingMut<P, A, B>
+where
+	P: FnMut(&A) -> B,
+{
+	type IntoFusedMutProjMut = Self;
+	fn into_fused_mut_projection_mut(self) -> Self::IntoFusedMutProjMut {
 		self
 	}
 }
@@ -65,7 +86,28 @@ where
 	}
 }
 
+impl<'a, P, A: ?Sized, B> IntoProjectionMut<&'a mut A, B, Self> for FusedRefBlockingMut<P, A, B>
+where
+	P: FnMut(&A) -> B,
+{
+	type IntoProjMut = Self;
+	fn into_projection_mut(self) -> Self::IntoProjMut {
+		self
+	}
+}
+
 impl<'a, P, A: ?Sized, B> IntoFusedProjectionMut<&'a A, B, Self> for FusedRefBlockingMut<P, A, B>
+where
+	P: FnMut(&A) -> B,
+{
+	type IntoFusedProjMut = Self;
+	fn into_fused_projection_mut(self) -> Self::IntoFusedProjMut {
+		self
+	}
+}
+
+impl<'a, P, A: ?Sized, B> IntoFusedProjectionMut<&'a mut A, B, Self>
+	for FusedRefBlockingMut<P, A, B>
 where
 	P: FnMut(&A) -> B,
 {
@@ -94,6 +136,25 @@ where
 	}
 }
 
+impl<'a, P, A: ?Sized, B> ProjectionMut<&'a mut A, B> for FusedRefBlockingMut<P, A, B>
+where
+	P: FnMut(&A) -> B,
+{
+	#[must_use]
+	fn project(
+		mut self: Pin<&mut Self>,
+		value: &mut A,
+	) -> PinHandleMut<'_, dyn '_ + Future<Output = B>> {
+		self.param = Some(value.into());
+		PinHandleMut::new(
+			unsafe {
+				transmute::<Pin<&mut Self>, Pin<&mut FusedRefBlockingFutureMut<P, A, B>>>(self)
+			},
+			None,
+		)
+	}
+}
+
 impl<'a, P, A: ?Sized, B> FusedProjectionMut<&'a A, B> for FusedRefBlockingMut<P, A, B>
 where
 	P: FnMut(&A) -> B,
@@ -102,6 +163,25 @@ where
 	fn project_fused(
 		mut self: Pin<&mut Self>,
 		value: &A,
+	) -> PinHandleMut<'_, dyn '_ + FusedFuture<Output = B>> {
+		self.param = Some(value.into());
+		PinHandleMut::new(
+			unsafe {
+				transmute::<Pin<&mut Self>, Pin<&mut FusedRefBlockingFutureMut<P, A, B>>>(self)
+			},
+			None,
+		)
+	}
+}
+
+impl<'a, P, A: ?Sized, B> FusedProjectionMut<&'a mut A, B> for FusedRefBlockingMut<P, A, B>
+where
+	P: FnMut(&A) -> B,
+{
+	#[must_use]
+	fn project_fused(
+		mut self: Pin<&mut Self>,
+		value: &mut A,
 	) -> PinHandleMut<'_, dyn '_ + FusedFuture<Output = B>> {
 		self.param = Some(value.into());
 		PinHandleMut::new(
@@ -168,12 +248,32 @@ where
 	}
 }
 
+impl<P, A: ?Sized, B> IntoMutProjectionMut<A, B, FusedRefBlockingMut<P, A, B>> for P
+where
+	P: FnMut(&A) -> B,
+{
+	type IntoMutProjMut = FusedRefBlockingMut<P, A, B>;
+	fn into_mut_projection_mut(self) -> Self::IntoMutProjMut {
+		self.into()
+	}
+}
+
 impl<P, A: ?Sized, B> IntoFusedRefProjectionMut<A, B, FusedRefBlockingMut<P, A, B>> for P
 where
 	P: FnMut(&A) -> B,
 {
 	type IntoFusedRefProjMut = FusedRefBlockingMut<P, A, B>;
 	fn into_fused_ref_projection_mut(self) -> Self::IntoFusedRefProjMut {
+		self.into()
+	}
+}
+
+impl<P, A: ?Sized, B> IntoFusedMutProjectionMut<A, B, FusedRefBlockingMut<P, A, B>> for P
+where
+	P: FnMut(&A) -> B,
+{
+	type IntoFusedMutProjMut = FusedRefBlockingMut<P, A, B>;
+	fn into_fused_mut_projection_mut(self) -> Self::IntoFusedMutProjMut {
 		self.into()
 	}
 }
@@ -188,7 +288,27 @@ where
 	}
 }
 
+impl<'a, P, A: ?Sized, B> IntoProjectionMut<&'a mut A, B, FusedRefBlockingMut<P, A, B>> for P
+where
+	P: FnMut(&A) -> B,
+{
+	type IntoProjMut = FusedRefBlockingMut<P, A, B>;
+	fn into_projection_mut(self) -> Self::IntoProjMut {
+		self.into()
+	}
+}
+
 impl<'a, P, A: ?Sized, B> IntoFusedProjectionMut<&'a A, B, FusedRefBlockingMut<P, A, B>> for P
+where
+	P: FnMut(&A) -> B,
+{
+	type IntoFusedProjMut = FusedRefBlockingMut<P, A, B>;
+	fn into_fused_projection_mut(self) -> Self::IntoFusedProjMut {
+		self.into()
+	}
+}
+
+impl<'a, P, A: ?Sized, B> IntoFusedProjectionMut<&'a mut A, B, FusedRefBlockingMut<P, A, B>> for P
 where
 	P: FnMut(&A) -> B,
 {
