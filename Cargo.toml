@@ -1,13 +1,13 @@
 [package]
 name = "percolate"
-version = "0.0.2"
+version = "0.0.3"
 authors = ["Tamme Schichler <tamme@schichler.dev>"]
 edition = "2018"
 description = "Yet another async utility library."
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Tamschi/percolate"
-homepage = "https://github.com/Tamschi/percolate/tree/v0.0.2"
-documentation = "https://docs.rs/percolate/0.0.2"
+homepage = "https://github.com/Tamschi/percolate/tree/v0.0.3"
+documentation = "https://docs.rs/percolate/0.0.3"
 keywords = ["async", "Future", "Stream", "traits"]
 categories = ["rust-patterns", "no-std"]
 readme = "README.md"
@@ -19,21 +19,14 @@ include = [
 	"CODE_OF_CONDUCT.md",
 	"LICENSE-*",
 	"README.md",
+	"SECURITY.md",
 ]
 resolver = "2"
 
 [badges]
 is-it-maintained-issue-resolution = { repository = "Tamschi/percolate" }
 is-it-maintained-open-issues = { repository = "Tamschi/percolate" }
-maintenance = { status = "experimental" }
-
-[dev-dependencies]
-cargo-husky = "1.5.0"
-doc-comment = "0.3.3"
-git_info = "0.1.2"
-pollster = "0.2.4"
-version-sync = "0.9.1"
-wasm-bindgen-test = "0.3.23"
+maintenance = { status = "experimental" } # This may differ between branches.
 
 [dependencies]
 ergo-pin = "0.1.0"
@@ -41,3 +34,11 @@ futures-core = { version = "0.3.15", default-features = false }
 futures-util = { version = "0.3.15", default-features = false }
 pin-project = "1.0.7"
 tap = "1.0.1"
+
+[dev-dependencies]
+cargo-husky = "1.5.0"
+doc-comment = "0.3.3"
+git_info = "0.1.2"
+pollster = "0.2.4"
+version-sync = "0.9.1"
+wasm-bindgen-test = "0.3.24"

@@ -38,7 +38,7 @@
 //!
 //! ### `.into_…()` Proxy
 //!
-//! As the ~~`Into`~~`Projection` traits in this module are object-safe,
+//! As the <code><s>Into</s></code> `Projection` traits in this module are object-safe,
 //! it makes sense to use a proxy for the initial conversion:
 //!
 //! ```
@@ -75,7 +75,7 @@
 //!
 //! > Practically speaking, it's the same underlying type, but **this is not guaranteed!**
 //!
-//! - casting: `Fused` -> ~~`Fused`~~
+//! - casting: `Fused` -> <code><s>Fused</s></code>
 //!
 //! # `〚Ref‖Mut〛`
 //!
@@ -87,13 +87,13 @@
 //! parameter by value or by (mutable) reference with "any" lifetime (in a way that's nice to work with.
 //! Some workarounds using [`fn`] as generic type parameter should work but would be less easy to use).
 //!
-//! The object-safe ~~`Into`~~ `Ref`/`Mut` traits like [`RefProjection<A, B>`] can already be expressed as trait aliases,
+//! The object-safe <code><s>Into</s></code> `Ref`/`Mut` traits like [`RefProjection<A, B>`] can already be expressed as trait aliases,
 //! in this case for example over [`for<'a> Projection<&'a A, B>`](`Projection`), and are blanket-implemented as such.
 //!
-//! When implementing a custom projection, implement the underlying ~~`Ref`~~/~~`Mut`~~ trait for any lifetime.
+//! When implementing a custom projection, implement the underlying <code><s>Ref</s></code>/<code><s>Mut</s></code> trait with a reference as input, for all possible lifetimes of that reference.
 //! The aliased shorthand then becomes available automatically.
 //!
-//! - casting: `Mut` -> `Ref` -> ~~`Mut`~~, `Ref` -> ~~`Ref`~~
+//! - casting: `Ref` -> `Mut`
 //!
 //! ## Trailing `〚Mut〛`
 //!
@@ -102,7 +102,7 @@
 //! Note that most simple projections still require this to store their parameter,
 //! as object-safety within a no-std crate doesn't leave room for temporary allocations.
 //!
-//! - casting: ~~`Mut`~~ -> `Mut`
+//! - casting: <code><s>Mut</s></code> -> `Mut`
 //!
 //! ### Example
 //!
