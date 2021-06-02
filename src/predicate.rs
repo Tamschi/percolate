@@ -1,4 +1,4 @@
-//! ~~`Mut`~~`Predicate`s are `RefProjection`s towards [`bool`].  
+//! <code><s>Mut</s>Predicate</code>s are `RefProjection`s towards [`bool`].  
 //! `MutPredicate`s are `MutProjection`s towards [`bool`].
 //!
 //! Prefer using `Into` `Predicate` types over `Projection` types in your function signatures to make them more intuitively readable.

@@ -2,6 +2,18 @@
 
 <!-- markdownlint-disable no-trailing-punctuation -->
 
+## next
+
+TODO: Date
+
+- Revisions:
+  - Added SECURITY.md file via `rust-template` project base update.
+  - Documentation fixes.
+    > Some text was not reliably strikethrough in module overviews.
+    >
+    > The rendered documentation also now uses `<s>` instead of `<del>`,
+    > since the former is more accurate in this case.
+
 ## 0.0.2
 
 2021-05-30
@@ -9,7 +21,7 @@
 - **Breaking Changes:**
   - Fixed name of `IntoRefProjection::into_ref_projection` from `into_ref_projection_mut`
   - `RefProjection` traits require `MutProjection` traits
-  - ~~`Mut`~~`Predicate` traits require `MutPredicate` traits
+  - <code><s>Mut</s>Predicate</code> traits require `MutPredicate` traits
 
 - New Features:
   - `MutProjection` traits
