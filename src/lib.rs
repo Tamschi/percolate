@@ -21,13 +21,13 @@
 //! - `Part1` `Part2` -> traits with "Part1" AND "Part2" in their name
 //!
 //! When these phrases appear in a module of this crate, they only refer to types exported there unless otherwise specified.
-//! 
+//!
 //! <!--
 //! NOTE: When documenting, use inline HTML to describe strikethrough code!
 //! Rustdoc does not render strikethrough correctly in the first item documentation paragraph shown in a module overview,
 //! and even outside of that, most instances should use `<code><s>…</s></code>` rather than `<del><code>…</code></del>`,
 //! the latter of which is what ~~`…`~~ renders as.
-//! 
+//!
 //! This way, code can also be partially strikethrough, which avoids unwanted spaces.
 //! -->
 //!
