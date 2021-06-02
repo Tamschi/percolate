@@ -2,9 +2,9 @@
 
 <!-- markdownlint-disable no-trailing-punctuation -->
 
-## next
+## 0.0.3
 
-TODO: Date
+2021-06-03
 
 - Revisions:
   - Added SECURITY.md file via `rust-template` project base update.

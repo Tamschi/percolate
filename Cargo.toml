@@ -1,13 +1,13 @@
 [package]
 name = "percolate"
-version = "0.0.2"
+version = "0.0.3"
 authors = ["Tamme Schichler <tamme@schichler.dev>"]
 edition = "2018"
 description = "Yet another async utility library."
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Tamschi/percolate"
-homepage = "https://github.com/Tamschi/percolate/tree/v0.0.2"
-documentation = "https://docs.rs/percolate/0.0.2"
+homepage = "https://github.com/Tamschi/percolate/tree/v0.0.3"
+documentation = "https://docs.rs/percolate/0.0.3"
 keywords = ["async", "Future", "Stream", "traits"]
 categories = ["rust-patterns", "no-std"]
 readme = "README.md"

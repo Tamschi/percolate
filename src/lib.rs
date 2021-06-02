@@ -37,7 +37,7 @@
 //! includes [`RefProjection`](`projection::RefProjection`) and [`RefProjectionMut`](`projection::RefProjectionMut`),
 //! but neither [`IntoProjection`](`projection::IntoProjection`) nor [`ProjectionMut`](`projection::ProjectionMut`)  (as `Ref` can't be trailing).
 
-#![doc(html_root_url = "https://docs.rs/percolate/0.0.2")]
+#![doc(html_root_url = "https://docs.rs/percolate/0.0.3")]
 #![no_std]
 #![warn(clippy::pedantic)]
 #![allow(
