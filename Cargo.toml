@@ -31,7 +31,7 @@ maintenance = { status = "experimental" } # This may differ between branches.
 
 [dependencies]
 ergo-pin = "0.1.0"
-futures-core = { version = "0.3.16", default-features = false }
+futures-core = { version = "0.3.23", default-features = false }
 futures-util = { version = "0.3.16", default-features = false }
 pin-project = "1.0.8"
 tap = "1.0.1"
